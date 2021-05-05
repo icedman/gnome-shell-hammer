@@ -22,5 +22,6 @@ sed '/custom/,$d' ./theme/gnome-shell.css > ./gnome-shell.css.orig
 
 cp ./gnome-shell.css.orig ./theme/gnome-shell.css
 cat custom.css >> ./theme/gnome-shell.css
+# cat dash.css >> ./theme/gnome-shell.css
 
 # cp install.sh ./theme/
