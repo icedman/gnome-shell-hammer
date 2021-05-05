@@ -32,12 +32,13 @@ Note: use this only if the offical dash-to-dock release is still messed up under
 
 Three finger swipe to change workspace is a new addition in gnome-40. The switching animation is now smooth just like the way it is with macOS. However, many use four fingers to swipe between workspaces.
 
-To switch back to 
-Simply run:
+To switch back to four fingers simply run:
 
 ```sh
 ./compile.sh
 ```
+Note: The threefingerwindowmove@do.sch.dev.gmail.com is pretty useful. Drag windows with three fingers.
+
 
 # warning
 These scripts are tested only under ArchLinux. Make sure you know how to switch to another tty and revert changes or reinstall gnome-shell in case something is messed up.
