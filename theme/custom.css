@@ -1,0 +1,63 @@
+
+
+/* custom */
+
+#lockDialogGroup {
+  background: url(file:///usr/share/backgrounds/background.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center; }
+
+.login-dialog StEntry {
+  min-height: 28px;
+  padding: 10px x !important;
+  border-width: 0px !important;
+  border: 0px !important;
+  border-radius: 5px;
+  background-color: rgba(45, 44, 46, 0.5);
+  border-color: rgba(45, 44, 46, 0.5);
+  color: #eeeeec; }
+
+
+.login-dialog StEntry:focus {
+  border-width: 0px !important;
+  border: 0px !important;
+  box-shadow: none;
+}
+
+.login-dialog-message-warning {
+  color: white;
+  text-shadow: 0px 0px 6px rgba(0, 0, 0, 0.726); }
+
+.login-dialog-not-listed-label {
+  padding-left: 2px; }
+  .login-dialog-not-listed-button:focus .login-dialog-not-listed-label,
+  .login-dialog-not-listed-button:hover .login-dialog-not-listed-label {
+    color: white;
+    text-shadow: 0px 0px 6px rgba(0, 0, 0, 0.726); }
+
+.login-dialog-not-listed-label {
+  font-size: 90%;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0px 0px 6px rgba(0, 0, 0, 0.726);
+  padding-top: 1em; }
+
+.login-dialog-username,
+.user-widget-label {
+  color: white;
+  text-shadow: 0px 0px 6px rgba(0, 0, 0, 0.726);
+  font-size: 120%;
+  font-weight: bold;
+  text-align: left;
+  padding-left: 15px; }
+
+.login-dialog-prompt-label {
+  color: white;
+  text-shadow: 0px 0px 6px rgba(0, 0, 0, 0.726); 
+  font-size: 110%;
+  padding-top: 1em; }
+
+.login-dialog-user-list:expanded .login-dialog-user-list-item:selected {
+  background-color: rgba(45, 44, 46, 0.5);
+  color: #ffffff; }
