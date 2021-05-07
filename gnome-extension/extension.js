@@ -9,6 +9,13 @@ class Extension {
     constructor() {
     }
 
+    _swipeMods() {
+        return [
+            Main.overview._swipeTracker._touchpadGesture,
+            Main.wm._workspaceAnimation._swipeTracker._touchpadGesture
+        ];
+    }
+
     enable() {
 
         // start-up animation
@@ -20,11 +27,7 @@ class Extension {
         }
 
         // three-finger to four-finger swipe
-        let gestureMods = [
-            Main.overview._swipeTracker._touchpadGesture,
-            Main.wm._workspaceAnimation._swipeTracker._touchpadGesture
-        ];
-
+        let gestureMods = this._swipeMods();
         gestureMods.forEach(g => {
             g.newEventHandler = (actor, event) => {
                 let e = {
@@ -43,12 +46,16 @@ class Extension {
             global.stage.disconnect(g._stageCaptureEvent);
             delete g._stageCaptureEvent;       
             g._stageCaptureEvent = global.stage.connect('captured-event::touchpad', g.newEventHandler);
-
         })
     }
 
     disable() {
-        // for revert .. logout for now
+        let gestureMods = this._swipeMods();
+        gestureMods.forEach(g => {
+            global.stage.disconnect(g._stageCaptureEvent);
+            delete g._stageCaptureEvent;       
+            g._stageCaptureEvent = global.stage.connect('captured-event::touchpad', g._handleEvent.bind(g));
+        })
     }
 }
 
