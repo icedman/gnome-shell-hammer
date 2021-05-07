@@ -1,0 +1,33 @@
+
+#dash {
+  padding-left: 0px;
+  padding-right: 0px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+}
+
+.dash-item-container {
+  height: 48px !important;
+}
+
+#dash .dash-item-container > StWidget,
+#dash .dash-item-container > StButton {
+  padding-left: 0px !important;
+  padding-right: 0px !important;
+  padding-top: 0px !important;
+  padding-bottom: 4px !important;
+}
+
+#dash > StWidget.dash-background {
+  padding-left: 0px !important;
+  padding-right: 0px !important;
+  padding-top: 2px !important;
+  padding-bottom: 10px !important;
+  margin-left: 2px !important;
+  margin-right: 2px !important;
+  /*margin-top: 2px !important;*/
+  margin-bottom: 2px !important;
+  background-color: rgba(0,0,0,0.6) !important;
+  opacity: 0.6 !important;
+  /*border: 2px solid magenta !important;*/
+}
