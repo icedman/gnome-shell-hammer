@@ -42,3 +42,13 @@ Note: The threefingerwindowmove@do.sch.dev.gmail.com is pretty useful. Drag wind
 
 # warning
 These scripts are tested only under ArchLinux. Make sure you know how to switch to another tty and revert changes or reinstall gnome-shell in case something is messed up.
+
+
+# extension
+There is an extension version for the more prudent users. Just copy gnome-extension to:
+
+```sh
+~/.local/share/gnome-shell/extensions/gnome-shell-hammer@icedman.github.com
+``` 
+
+Enable. Logout.
