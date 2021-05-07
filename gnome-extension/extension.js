@@ -20,24 +20,35 @@ class Extension {
         }
 
         // three-finger to four-finger swipe
-        if (!Main.overview._swipeTracker._touchpadGesture.__handleEvent) {
-            Main.overview._swipeTracker._touchpadGesture.__handleEvent = Main.overview._swipeTracker._touchpadGesture._handleEvent;
-        }
-        Main.overview._swipeTracker._touchpadGesture._handleEvent = (actor, event) => {
-            if (event.get_touchpad_gesture_finger_count() == 3) {
-                event.get_touchpad_gesture_finger_count = () => { return 4; }
+        let gestureMods = [
+            Main.overview._swipeTracker._touchpadGesture,
+            Main.wm._workspaceAnimation._swipeTracker._touchpadGesture
+        ];
+
+        gestureMods.forEach(g => {
+            g.newEventHandler = (actor, event) => {
+                let e = {
+                    type: () => { return event.type() },
+                    get_gesture_phase: () => { return event.get_gesture_phase() },
+                    get_touchpad_gesture_finger_count: () => { 
+                        return event.get_touchpad_gesture_finger_count() == 4 ? 3 : 0;
+                    },
+                    get_time: () => { return event.get_time() },
+                    get_coords: () => { return event.get_coords() },
+                    get_gesture_motion_delta: () => { return event.get_gesture_motion_delta() }
+                }
+                return g._handleEvent(actor, e);
             }
-            return Main.overview._swipeTracker._touchpadGesture.__handleEvent(actor, event);
-        }
+
+            global.stage.disconnect(g._stageCaptureEvent);
+            delete g._stageCaptureEvent;       
+            g._stageCaptureEvent = global.stage.connect('captured-event::touchpad', g.newEventHandler);
+
+        })
     }
 
     disable() {
-
-        // start-up animation
-        Main.overview.runStartupAnimation = Main.overview._runStartupAnimation;
-
-        // three-finger to four-finger swipe
-        Main.overview._swipeTracker._touchpadGesture._handleEvent = Main.overview._swipeTracker._touchpadGesture.__handleEvent;
+        // for revert .. logout for now
     }
 }
 
