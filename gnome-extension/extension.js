@@ -12,7 +12,8 @@ class Extension {
     _swipeMods() {
         return [
             Main.overview._swipeTracker._touchpadGesture,
-            Main.wm._workspaceAnimation._swipeTracker._touchpadGesture
+            Main.wm._workspaceAnimation._swipeTracker._touchpadGesture,
+            Main.overview._overview._controls._workspacesDisplay._swipeTracker._touchpadGesture
         ];
     }
 
