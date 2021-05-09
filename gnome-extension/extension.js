@@ -2,19 +2,20 @@
   License: GPL v3
 */
 
-
 const Main = imports.ui.main;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
 
 class Extension {
     constructor() {
-    }
 
-    _swipeMods() {
-        return [
+        this._swipeMods = [
             Main.overview._swipeTracker._touchpadGesture,
             Main.wm._workspaceAnimation._swipeTracker._touchpadGesture,
-            Main.overview._overview._controls._workspacesDisplay._swipeTracker._touchpadGesture
+            Main.overview._overview._controls._workspacesDisplay._swipeTracker._touchpadGesture,
+            // Main.overview._overview._controls._appDisplay._swipeTracker._touchpadGesture
         ];
+
     }
 
     enable() {
@@ -28,8 +29,7 @@ class Extension {
         }
 
         // three-finger to four-finger swipe
-        let gestureMods = this._swipeMods();
-        gestureMods.forEach(g => {
+        this._swipeMods.forEach(g => {
             g.newEventHandler = (actor, event) => {
                 let e = {
                     type: () => { return event.type() },
@@ -51,8 +51,7 @@ class Extension {
     }
 
     disable() {
-        let gestureMods = this._swipeMods();
-        gestureMods.forEach(g => {
+        this._swipeMods.forEach(g => {
             global.stage.disconnect(g._stageCaptureEvent);
             delete g._stageCaptureEvent;       
             g._stageCaptureEvent = global.stage.connect('captured-event::touchpad', g._handleEvent.bind(g));

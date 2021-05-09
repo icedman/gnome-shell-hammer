@@ -9,5 +9,6 @@
   ],
   "url": "https://github.com/icedman/gnome-shell-hammer",
   "uuid": "gnome-shell-hammer@icedman.github.com",
+  "settings-schema": "org.gnome.shell.extensions.gnome-shell-hammer",
   "version": 1
 }
