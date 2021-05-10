@@ -3,7 +3,7 @@
   <schema path="/org/gnome/shell/extensions/gnome-shell-hammer/" id="org.gnome.shell.extensions.gnome-shell-hammer">
     <key type="b" name="startup-overview">
         <default>true</default>
-        <summary>Suppress Overview at startup'</summary>
+        <summary>Suppress Overview at startup</summary>
         <description>Suppress Overview animation at startup</description>
     </key>
     <key type="b" name="four-finger-swipe">
