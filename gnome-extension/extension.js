@@ -5,10 +5,53 @@
 const Main = imports.ui.main;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
+const schema_id = Me.imports.prefs.schema_id;
+const SettingsKey = Me.imports.prefs.SettingsKey;
 
 class Extension {
     constructor() {
+        this._swipeMods = [];
 
+        this._settings = ExtensionUtils.getSettings(schema_id);
+        
+        this._settings.connect(`changed::${SettingsKey.STARTUP_OVERVIEW}`, () => {
+            if (this._settings.get_boolean(SettingsKey.STARTUP_OVERVIEW)) {
+                this.enable_suppress_startup_overview();
+            } else {
+                this.disable_suppress_startup_overview();
+            }
+        });
+        this._settings.connect(`changed::${SettingsKey.FOUR_FINGER_SWIPE}`, () => {
+            if (this._settings.get_boolean(SettingsKey.FOUR_FINGER_SWIPE)) {
+                this.enable_four_finger_swipe();
+            } else {
+                this.disable_four_finger_swipe();
+            }
+        });
+    }
+
+    enable() {
+        if (this._settings.get_boolean(SettingsKey.STARTUP_OVERVIEW)) {
+            this.enable_suppress_startup_overview();
+        }
+        if (this._settings.get_boolean(SettingsKey.FOUR_FINGER_SWIPE)) {
+            this.enable_four_finger_swipe();
+        }
+    }
+
+    disable() {
+        this.disable_suppress_startup_overview();
+        this.disable_four_finger_swipe();
+    }
+
+    enable_suppress_startup_overview() {
+        this._runStartupAnimation = Main.overview.runStartupAnimation;
+        Main.overview.runStartupAnimation = (callback) => {
+            callback();
+        }
+    }
+
+    enable_four_finger_swipe() {
         this._swipeMods = [
             Main.overview._swipeTracker._touchpadGesture,
             Main.wm._workspaceAnimation._swipeTracker._touchpadGesture,
@@ -16,19 +59,6 @@ class Extension {
             // Main.overview._overview._controls._appDisplay._swipeTracker._touchpadGesture
         ];
 
-    }
-
-    enable() {
-
-        // start-up animation
-        if (!Main.overview._runStartupAnimation) {
-            Main.overview._runStartupAnimation = Main.overview.runStartupAnimation;
-        }
-        Main.overview.runStartupAnimation = (callback) => {
-            callback();
-        }
-
-        // three-finger to four-finger swipe
         this._swipeMods.forEach(g => {
             g.newEventHandler = (actor, event) => {
                 let e = {
@@ -50,12 +80,20 @@ class Extension {
         })
     }
 
-    disable() {
+    disable_suppress_startup_overview() {
+        if (this._runStartupAnimation) {
+            Main.overview.runStartupAnimation = this._runStartupAnimation;
+            this._runStartupAnimation = null;
+        }
+    }
+
+    disable_four_finger_swipe() {
         this._swipeMods.forEach(g => {
             global.stage.disconnect(g._stageCaptureEvent);
             delete g._stageCaptureEvent;       
             g._stageCaptureEvent = global.stage.connect('captured-event::touchpad', g._handleEvent.bind(g));
         })
+        this._swipeMods = [];
     }
 }
 

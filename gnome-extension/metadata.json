@@ -1,5 +1,5 @@
 {
-  "description": "hammer gnome shell into perfection",
+  "description": "Hammer the gnome shell into perfection",
   "name": "Gnome Shell Hammer",
   "original-authors": [
     "icedman"
@@ -9,6 +9,7 @@
   ],
   "url": "https://github.com/icedman/gnome-shell-hammer",
   "uuid": "gnome-shell-hammer@icedman.github.com",
-  "settings-schema": "org.gnome.shell.extensions.gnome-shell-hammer",
+  "schema-id": "org.gnome.shell.extensions.gnome-shell-hammer",
+  "gettext-domain": "gnome-shell-hammer",
   "version": 1
 }
