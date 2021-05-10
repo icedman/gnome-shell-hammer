@@ -18,7 +18,7 @@ const SettingsKey = {
     FOUR_FINGER_SWIPE: 'four-finger-swipe'
 };
 
-const SettingListBoxRow = GObject.registerClass({
+const ShellHammerSettingListBoxRow = GObject.registerClass({
     Properties: {
         'label': GObject.ParamSpec.string(
             'label', 'Settings Label', 'label',
@@ -43,7 +43,7 @@ const SettingListBoxRow = GObject.registerClass({
             GObject.ParamFlags.READWRITE),
     },
 },
-class SettingListBoxRow extends Gtk.ListBoxRow {
+class ShellHammerSettingListBoxRow extends Gtk.ListBoxRow {
     _init(label, description, settingsKey, type, options) {
         this.rowType = type;
         this._settings = ExtensionUtils.getSettings(schema_id);
@@ -108,8 +108,8 @@ class SettingListBoxRow extends Gtk.ListBoxRow {
 }
 );
 
-const SettingsPane = GObject.registerClass(
-    class SettingsPane extends Gtk.Frame {
+const ShellHammerSettingsPane = GObject.registerClass(
+    class ShellHammerSettingsPane extends Gtk.Frame {
         _init() {
             super._init({
                 margin_top: 36,
@@ -129,10 +129,10 @@ const SettingsPane = GObject.registerClass(
                 this._rowActivated(widget, row);
             });
 
-            const startupOverview = new SettingListBoxRow(_('Suppress Overview at startup'), _('Suppress Overview animation at startup'), SettingsKey.STARTUP_OVERVIEW);
+            const startupOverview = new ShellHammerSettingListBoxRow(_('Suppress Overview at startup'), _('Suppress Overview animation at startup'), SettingsKey.STARTUP_OVERVIEW);
             _listBox.append(startupOverview);
 
-            const fourFingerSwipe = new SettingListBoxRow(_('Four-finger swipe'), _('Enable four-finger swipe gestures'), SettingsKey.FOUR_FINGER_SWIPE);
+            const fourFingerSwipe = new ShellHammerSettingListBoxRow(_('Four-finger swipe'), _('Enable four-finger swipe gestures'), SettingsKey.FOUR_FINGER_SWIPE);
             _listBox.append(fourFingerSwipe);
         }
 
@@ -145,12 +145,12 @@ const SettingsPane = GObject.registerClass(
     }
 );
 
-const SettingsWidget = GObject.registerClass(
-    class SettingsWidget extends Gtk.Notebook {
+const ShellHammerSettingsWidget = GObject.registerClass(
+    class ShellHammerSettingsWidget extends Gtk.Notebook {
         _init() {
             super._init();
 
-            const _settingsPane = new SettingsPane();
+            const _settingsPane = new ShellHammerSettingsPane();
             this.append_page(_settingsPane, new Gtk.Label({ label: _('General') }));
         }
     }
@@ -161,5 +161,5 @@ function init() {
 }
 
 function buildPrefsWidget() {
-    return new SettingsWidget();
+    return new ShellHammerSettingsWidget();
 }
