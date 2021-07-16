@@ -30,7 +30,7 @@ Note: use this only if the offical dash-to-dock release is still messed up under
 
 # gnome-40 three finger-swipe
 
-WARNING: It has been report to have issues with the latest gnome-shell. Use the extension version instead.
+WARNING: This has been reported to have issues with the latest gnome-shell. Use the extension version instead.
 
 Three finger swipe to change workspace is a new addition in gnome-40. The switching animation is now smooth just like the way it is with macOS. However, many use four fingers to swipe between workspaces.
 
