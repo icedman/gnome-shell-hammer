@@ -5,7 +5,8 @@
     "icedman"
   ],
   "shell-version": [
-    "40"
+    "40",
+    "41"
   ],
   "url": "https://github.com/icedman/gnome-shell-hammer",
   "uuid": "gnome-shell-hammer@icedman.github.com",
