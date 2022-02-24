@@ -193,6 +193,10 @@ function zoomOutActor(actor) {
 }
 
 function zoomOutActorAtPos(actor, x, y) {
+    const monitor = Main.layoutManager.findMonitorForActor(actor);
+    if (!monitor)
+        return;
+
     const actorClone = new Clutter.Clone({
         source: actor,
         reactive: false,
@@ -207,7 +211,6 @@ function zoomOutActorAtPos(actor, x, y) {
     Main.uiGroup.add_actor(actorClone);
 
     // Avoid monitor edges to not zoom outside the current monitor
-    let monitor = Main.layoutManager.findMonitorForActor(actor);
     let scaledWidth = width * APPICON_ANIMATION_OUT_SCALE;
     let scaledHeight = height * APPICON_ANIMATION_OUT_SCALE;
     let scaledX = x - (scaledWidth - width) / 2;
@@ -1172,7 +1175,8 @@ var IconGrid = GObject.registerClass({
             row_spacing: 0,
         });
         const layoutManager = new IconGridLayout(layoutParams);
-        layoutManager.connect('pages-changed', () => this.emit('pages-changed'));
+        const pagesChangedId = layoutManager.connect('pages-changed',
+            () => this.emit('pages-changed'));
 
         super._init({
             style_class: 'icon-grid',
@@ -1188,6 +1192,7 @@ var IconGrid = GObject.registerClass({
 
         this.connect('actor-added', this._childAdded.bind(this));
         this.connect('actor-removed', this._childRemoved.bind(this));
+        this.connect('destroy', () => layoutManager.disconnect(pagesChangedId));
     }
 
     _getChildrenToAnimate() {

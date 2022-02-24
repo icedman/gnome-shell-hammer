@@ -20,7 +20,7 @@ const WORKSPACE_MAX_SPACING = 80;
 
 const WORKSPACE_INACTIVE_SCALE = 0.94;
 
-const SECONDARY_WORKSPACE_SCALE = 0.70;
+const SECONDARY_WORKSPACE_SCALE = 0.80;
 
 var WorkspacesViewBase = GObject.registerClass({
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
@@ -28,7 +28,6 @@ var WorkspacesViewBase = GObject.registerClass({
     _init(monitorIndex, overviewAdjustment) {
         super._init({
             style_class: 'workspaces-view',
-            clip_to_allocation: monitorIndex !== Main.layoutManager.primaryIndex,
             x_expand: true,
             y_expand: true,
         });
@@ -615,6 +614,7 @@ class SecondaryMonitorDisplay extends St.Widget {
                 index: this._monitorIndex,
                 work_area: true,
             }),
+            clip_to_allocation: true,
         });
 
         this.connect('destroy', () => this._onDestroy());
@@ -627,7 +627,10 @@ class SecondaryMonitorDisplay extends St.Widget {
             () => this._updateThumbnailVisibility());
 
         this._stateChangedId = this._overviewAdjustment.connect('notify::value',
-            () => this._updateThumbnailParams());
+            () => {
+                this._updateThumbnailParams();
+                this.queue_relayout();
+            });
 
         this._settings = new Gio.Settings({ schema_id: MUTTER_SCHEMA });
         this._settings.connect('changed::workspaces-only-on-primary',
@@ -777,6 +780,7 @@ class SecondaryMonitorDisplay extends St.Widget {
             return;
 
         this._thumbnails.show();
+        this._updateThumbnailParams();
         this._thumbnails.ease_property('expand-fraction', visible ? 1 : 0, {
             duration: OverviewControls.SIDE_CONTROLS_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -785,6 +789,9 @@ class SecondaryMonitorDisplay extends St.Widget {
     }
 
     _updateThumbnailParams() {
+        if (!this._thumbnails.visible)
+            return;
+
         const { initialState, finalState, progress } =
             this._overviewAdjustment.getStateTransitionParams();
 
@@ -1012,7 +1019,7 @@ class WorkspacesDisplay extends St.Widget {
     }
 
     vfunc_navigate_focus(from, direction) {
-        return this._getPrimaryView().navigate_focus(from, direction, false);
+        return this._getPrimaryView()?.navigate_focus(from, direction, false);
     }
 
     setPrimaryWorkspaceVisible(visible) {

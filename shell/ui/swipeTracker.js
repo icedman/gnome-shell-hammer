@@ -16,7 +16,6 @@ const TOUCHPAD_BASE_WIDTH = 400;
 const EVENT_HISTORY_THRESHOLD_MS = 150;
 
 const SCROLL_MULTIPLIER = 10;
-const SWIPE_MULTIPLIER = 0.5;
 
 const MIN_ANIMATION_DURATION = 100;
 const MAX_ANIMATION_DURATION = 400;
@@ -33,7 +32,7 @@ const DURATION_MULTIPLIER = 3;
 const ANIMATION_BASE_VELOCITY = 0.002;
 const EPSILON = 0.005;
 
-const GESTURE_FINGER_COUNT = 4;
+const GESTURE_FINGER_COUNT = 3;
 
 const State = {
     NONE: 0,
@@ -139,7 +138,7 @@ const TouchpadSwipeGesture = GObject.registerClass({
         let time = event.get_time();
 
         const [x, y] = event.get_coords();
-        let [dx, dy] = event.get_gesture_motion_delta();
+        const [dx, dy] = event.get_gesture_motion_delta_unaccelerated();
 
         if (this._state === TouchpadState.NONE) {
             if (dx === 0 && dy === 0)
@@ -151,8 +150,8 @@ const TouchpadSwipeGesture = GObject.registerClass({
         }
 
         if (this._state === TouchpadState.PENDING) {
-            this._cumulativeX += dx * SWIPE_MULTIPLIER;
-            this._cumulativeY += dy * SWIPE_MULTIPLIER;
+            this._cumulativeX += dx;
+            this._cumulativeY += dy;
 
             const cdx = this._cumulativeX;
             const cdy = this._cumulativeY;
@@ -179,7 +178,7 @@ const TouchpadSwipeGesture = GObject.registerClass({
         }
 
         const vertical = this.orientation === Clutter.Orientation.VERTICAL;
-        let delta = (vertical ? dy : dx) * SWIPE_MULTIPLIER;
+        let delta = vertical ? dy : dx;
         const distance = vertical ? TOUCHPAD_BASE_HEIGHT : TOUCHPAD_BASE_WIDTH;
 
         switch (event.get_gesture_phase()) {
@@ -365,7 +364,7 @@ const ScrollGesture = GObject.registerClass({
         if ((this._allowedModes & Main.actionMode) === 0)
             return false;
 
-        if (this.scrollModifiers !== 0 &&
+        if (!this._began && this.scrollModifiers !== 0 &&
             (event.get_state() & this.scrollModifiers) === 0)
             return false;
 

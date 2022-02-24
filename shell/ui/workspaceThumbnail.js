@@ -720,6 +720,7 @@ var ThumbnailsBox = GObject.registerClass({
     }
 
     _onDestroy() {
+        this._destroyThumbnails();
         this._unqueueUpdateStates();
 
         if (this._scrollValueId)
@@ -993,6 +994,9 @@ var ThumbnailsBox = GObject.registerClass({
     }
 
     _createThumbnails() {
+        if (this._thumbnails.length > 0)
+            return;
+
         let workspaceManager = global.workspace_manager;
 
         this._nWorkspacesNotifyId =

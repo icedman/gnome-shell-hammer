@@ -106,10 +106,6 @@ function _sessionUpdated() {
     if (sessionMode.isPrimary)
         _loadDefaultStylesheet();
 
-    wm.setCustomKeybindingHandler('panel-main-menu',
-                                  Shell.ActionMode.NORMAL |
-                                  Shell.ActionMode.OVERVIEW,
-                                  sessionMode.hasOverview ? overview.toggle.bind(overview) : null);
     wm.allowKeybinding('overlay-key', Shell.ActionMode.NORMAL |
                                       Shell.ActionMode.OVERVIEW);
 
@@ -258,7 +254,7 @@ function _initializeUI() {
     // We're ready for the session manager to move to the next phase
     GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
         Shell.util_sd_notify();
-        Meta.register_with_session();
+        global.context.notify_ready();
         return GLib.SOURCE_REMOVE;
     });
 

@@ -413,9 +413,6 @@ var WorkspaceLayout = GObject.registerClass({
 
         this._metaWorkspace = metaWorkspace;
         this._monitorIndex = monitorIndex;
-        this._workarea = metaWorkspace
-            ? metaWorkspace.get_work_area_for_monitor(this._monitorIndex)
-            : Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
         this._overviewAdjustment = overviewAdjustment;
 
         this._container = null;
@@ -432,8 +429,23 @@ var WorkspaceLayout = GObject.registerClass({
         });
 
         this._stateAdjustment.connect('notify::value', () => {
+            this._syncOpacities();
             this.syncOverlays();
             this.layout_changed();
+        });
+
+        this._workarea = null;
+        this._workareasChangedId = 0;
+    }
+
+    _syncOpacity(actor, metaWindow) {
+        if (!metaWindow.showing_on_its_workspace())
+            actor.opacity = this._stateAdjustment.value * 255;
+    }
+
+    _syncOpacities() {
+        this._windows.forEach(({ metaWindow }, actor) => {
+            this._syncOpacity(actor, metaWindow);
         });
     }
 
@@ -476,13 +488,18 @@ var WorkspaceLayout = GObject.registerClass({
             colSpacing += oversize;
 
         if (containerBox) {
-            const [topOverlap, bottomOverlap] = window.overlapHeights();
-            const overlap = Math.max(topOverlap, bottomOverlap);
+            const monitor = Main.layoutManager.monitors[this._monitorIndex];
 
-            containerBox.x1 += oversize;
-            containerBox.x2 -= oversize;
-            containerBox.y1 += oversize + overlap;
-            containerBox.y2 -= oversize + overlap;
+            const bottomPoint = new Graphene.Point3D({ y: containerBox.y2 });
+            const transformedBottomPoint =
+                this._container.apply_transform_to_point(bottomPoint);
+            const bottomFreeSpace =
+                (monitor.y + monitor.height) - transformedBottomPoint.y;
+
+            const [, bottomOverlap] = window.overlapHeights();
+
+            if ((bottomOverlap + oversize) > bottomFreeSpace)
+                containerBox.y2 -= (bottomOverlap + oversize) - bottomFreeSpace;
         }
 
         return [rowSpacing, colSpacing, containerBox];
@@ -558,8 +575,25 @@ var WorkspaceLayout = GObject.registerClass({
         return workarea;
     }
 
+    _syncWorkareaTracking() {
+        if (this._container) {
+            if (this._workAreaChangedId)
+                return;
+            this._workarea = Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
+            this._workareasChangedId =
+                global.display.connect('workareas-changed', () => {
+                    this._workarea = Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
+                    this.layout_changed();
+                });
+        } else if (this._workareasChangedId) {
+            global.display.disconnect(this._workareasChangedId);
+            this._workareasChangedId = 0;
+        }
+    }
+
     vfunc_set_container(container) {
         this._container = container;
+        this._syncWorkareaTracking();
         this._stateAdjustment.actor = container;
     }
 
@@ -587,6 +621,7 @@ var WorkspaceLayout = GObject.registerClass({
 
     vfunc_allocate(container, box) {
         const containerBox = container.allocation;
+        const [containerWidth, containerHeight] = containerBox.get_size();
         const containerAllocationChanged =
             this._lastBox === null || !this._lastBox.equal(containerBox);
         this._lastBox = containerBox.copy();
@@ -601,6 +636,28 @@ var WorkspaceLayout = GObject.registerClass({
         if (this._layoutFrozen && containerAllocationChanged && !Main.overview.animationInProgress) {
             this._layoutFrozen = false;
             this.notify('layout-frozen');
+        }
+
+        const { ControlsState } = OverviewControls;
+        const { currentState } =
+            this._overviewAdjustment.getStateTransitionParams();
+        const inSessionTransition = currentState <= ControlsState.WINDOW_PICKER;
+
+        const window = this._sortedWindows[0];
+
+        if (inSessionTransition || !window) {
+            container.remove_clip();
+        } else {
+            const [, bottomOversize] = window.chromeHeights();
+            const [containerX, containerY] = containerBox.get_origin();
+
+            const extraHeightProgress =
+                currentState - OverviewControls.ControlsState.WINDOW_PICKER;
+
+            const extraClipHeight = bottomOversize * (1 - extraHeightProgress);
+
+            container.set_clip(containerX, containerY,
+                containerWidth, containerHeight + extraClipHeight);
         }
 
         let layoutChanged = false;
@@ -619,13 +676,9 @@ var WorkspaceLayout = GObject.registerClass({
         const workareaWidth = this._workarea.width;
         const stateAdjustementValue = this._stateAdjustment.value;
 
-        const allocationScale = containerBox.get_width() / workareaWidth;
+        const allocationScale = containerWidth / workareaWidth;
 
         const childBox = new Clutter.ActorBox();
-
-        const { ControlsState } = OverviewControls;
-        const inSessionTransition =
-            this._overviewAdjustment.value <= ControlsState.WINDOW_PICKER;
 
         const nSlots = this._windowSlots.length;
         for (let i = 0; i < nSlots; i++) {
@@ -648,8 +701,6 @@ var WorkspaceLayout = GObject.registerClass({
                 workspaceBoxY = workareaY * allocationScale;
                 workspaceBoxWidth = 0;
                 workspaceBoxHeight = 0;
-
-                child.opacity = stateAdjustementValue * 255;
             }
 
             // Don't allow the scaled floating size to drop below
@@ -750,6 +801,7 @@ var WorkspaceLayout = GObject.registerClass({
             return winA.get_stable_sequence() - winB.get_stable_sequence();
         });
 
+        this._syncOpacity(window, metaWindow);
         this._syncOverlay(window);
         this._container.add_child(window);
 
@@ -887,7 +939,7 @@ class WorkspaceBackground extends St.Widget {
         this._workarea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         this._stateAdjustment = stateAdjustment;
-        stateAdjustment.connect('notify::value', () => {
+        this._adjustmentId = stateAdjustment.connect('notify::value', () => {
             this._updateBorderRadius();
             this.queue_relayout();
         });
@@ -919,6 +971,8 @@ class WorkspaceBackground extends St.Widget {
                 this.queue_relayout();
             });
         this._updateRoundedClipBounds();
+
+        this._updateBorderRadius();
 
         this.connect('destroy', this._onDestroy.bind(this));
     }
@@ -972,13 +1026,21 @@ class WorkspaceBackground extends St.Widget {
 
         const [contentWidth, contentHeight] = contentBox.get_size();
         const monitor = Main.layoutManager.monitors[this._monitorIndex];
-        const xOff = (contentWidth / this._workarea.width) *
-            (this._workarea.x - monitor.x);
-        const yOff = (contentHeight / this._workarea.height) *
-            (this._workarea.y - monitor.y);
+        const [mX1, mX2] = [monitor.x, monitor.x + monitor.width];
+        const [mY1, mY2] = [monitor.y, monitor.y + monitor.height];
+        const [wX1, wX2] = [this._workarea.x, this._workarea.x + this._workarea.width];
+        const [wY1, wY2] = [this._workarea.y, this._workarea.y + this._workarea.height];
+        const xScale = contentWidth / this._workarea.width;
+        const yScale = contentHeight / this._workarea.height;
+        const leftOffset = wX1 - mX1;
+        const topOffset = wY1 - mY1;
+        const rightOffset = mX2 - wX2;
+        const bottomOffset = mY2 - wY2;
 
-        contentBox.set_origin(-xOff, -yOff);
-        contentBox.set_size(xOff + contentWidth, yOff + contentHeight);
+        contentBox.set_origin(-leftOffset * xScale, -topOffset * yScale);
+        contentBox.set_size(
+            contentWidth + (leftOffset + rightOffset) * xScale,
+            contentHeight + (topOffset + bottomOffset) * yScale);
         this._backgroundGroup.allocate(contentBox);
     }
 
@@ -991,6 +1053,11 @@ class WorkspaceBackground extends St.Widget {
         if (this._workareasChangedId) {
             global.display.disconnect(this._workareasChangedId);
             delete this._workareasChangedId;
+        }
+
+        if (this._adjustmentId) {
+            this._stateAdjustment.disconnect(this._adjustmentId);
+            delete this._adjustmentId;
         }
     }
 });
@@ -1031,15 +1098,6 @@ class Workspace extends St.Widget {
             });
 
         this._overviewAdjustment = overviewAdjustment;
-        this._overviewStateId = overviewAdjustment.connect('notify::value', () => {
-            const overviewState = overviewAdjustment.value;
-
-            // We want windows not to spill out when the overview is in
-            // APP_GRID state, but HIDDEN and WINDOW_PICKER should allow
-            // them to eventually draw outside the workspace.
-            this._container.clip_to_allocation =
-                overviewState > OverviewControls.ControlsState.WINDOW_PICKER;
-        });
 
         this.monitorIndex = monitorIndex;
         this._monitor = Main.layoutManager.monitors[this.monitorIndex];
@@ -1065,6 +1123,7 @@ class Workspace extends St.Widget {
         this.connect('style-changed', this._onStyleChanged.bind(this));
         this.connect('destroy', this._onDestroy.bind(this));
 
+        this._skipTaskbarSignals = new Map();
         const windows = global.get_window_actors().map(a => a.meta_window)
             .filter(this._isMyWindow, this);
 
@@ -1191,6 +1250,14 @@ class Workspace extends St.Widget {
         if (!this._isMyWindow(metaWin))
             return;
 
+        this._skipTaskbarSignals.set(metaWin,
+            metaWin.connect('notify::skip-taskbar', () => {
+                if (metaWin.skip_taskbar)
+                    this._doRemoveWindow(metaWin);
+                else
+                    this._doAddWindow(metaWin);
+            }));
+
         if (!this._isOverviewWindow(metaWin)) {
             if (metaWin.get_transient_for() == null)
                 return;
@@ -1230,7 +1297,8 @@ class Workspace extends St.Widget {
     }
 
     _windowAdded(metaWorkspace, metaWin) {
-        this._doAddWindow(metaWin);
+        if (!Main.overview.closing)
+            this._doAddWindow(metaWin);
     }
 
     _windowRemoved(metaWorkspace, metaWin) {
@@ -1238,7 +1306,7 @@ class Workspace extends St.Widget {
     }
 
     _windowEnteredMonitor(metaDisplay, monitorIndex, metaWin) {
-        if (monitorIndex == this.monitorIndex)
+        if (monitorIndex === this.monitorIndex && !Main.overview.closing)
             this._doAddWindow(metaWin);
     }
 
@@ -1259,7 +1327,15 @@ class Workspace extends St.Widget {
         return false;
     }
 
+    _clearSkipTaskbarSignals() {
+        for (const [metaWin, id] of this._skipTaskbarSignals)
+            metaWin.disconnect(id);
+        this._skipTaskbarSignals.clear();
+    }
+
     prepareToLeaveOverview() {
+        this._clearSkipTaskbarSignals();
+
         for (let i = 0; i < this._windows.length; i++)
             this._windows[i].remove_all_transitions();
 
@@ -1273,6 +1349,8 @@ class Workspace extends St.Widget {
     }
 
     _onDestroy() {
+        this._clearSkipTaskbarSignals();
+
         if (this._overviewHiddenId) {
             Main.overview.disconnect(this._overviewHiddenId);
             this._overviewHiddenId = 0;
@@ -1289,11 +1367,6 @@ class Workspace extends St.Widget {
         if (this._layoutFrozenId > 0) {
             GLib.source_remove(this._layoutFrozenId);
             this._layoutFrozenId = 0;
-        }
-
-        if (this._overviewStateId > 0) {
-            this._overviewAdjustment.disconnect(this._overviewStateId);
-            delete this._overviewStateId;
         }
 
         this._windows = [];

@@ -2,7 +2,6 @@
 /* exported KeyboardManager */
 
 const { Clutter, Gio, GLib, GObject, Graphene, Meta, Shell, St } = imports.gi;
-const ByteArray = imports.byteArray;
 const Signals = imports.signals;
 
 const EdgeDragAction = imports.ui.edgeDragAction;
@@ -296,7 +295,6 @@ var Key = GObject.registerClass({
 
         this._capturedEventId = 0;
         this._unmapId = 0;
-        this._longPress = false;
     }
 
     _onDestroy() {
@@ -334,20 +332,19 @@ var Key = GObject.registerClass({
     _press(key) {
         this.emit('activated');
 
-        if (key !== this.key || this._extendedKeys.length === 0)
+        if (this._extendedKeys.length === 0)
             this.emit('pressed', this._getKeyval(key), key);
 
         if (key == this.key) {
             this._pressTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
                 KEY_LONG_PRESS_TIME,
                 () => {
-                    this._longPress = true;
                     this._pressTimeoutId = 0;
 
                     this.emit('long-press');
 
                     if (this._extendedKeys.length > 0) {
-                        this._touchPressed = false;
+                        this._touchPressSlot = null;
                         this._ensureExtendedKeysPopup();
                         this.keyButton.set_hover(false);
                         this.keyButton.fake_release();
@@ -365,12 +362,11 @@ var Key = GObject.registerClass({
             this._pressTimeoutId = 0;
         }
 
-        if (!this._longPress && key === this.key && this._extendedKeys.length > 0)
+        if (this._extendedKeys.length > 0)
             this.emit('pressed', this._getKeyval(key), key);
 
         this.emit('released', this._getKeyval(key), key);
         this._hideSubkeys();
-        this._longPress = false;
     }
 
     cancel() {
@@ -378,7 +374,7 @@ var Key = GObject.registerClass({
             GLib.source_remove(this._pressTimeoutId);
             this._pressTimeoutId = 0;
         }
-        this._touchPressed = false;
+        this._touchPressSlot = null;
         this.keyButton.set_hover(false);
         this.keyButton.fake_release();
     }
@@ -459,14 +455,19 @@ var Key = GObject.registerClass({
             if (!Meta.is_wayland_compositor())
                 return Clutter.EVENT_PROPAGATE;
 
-            if (!this._touchPressed &&
+            const slot = event.get_event_sequence().get_slot();
+
+            if (!this._touchPressSlot &&
                 event.type() == Clutter.EventType.TOUCH_BEGIN) {
-                this._touchPressed = true;
+                this._touchPressSlot = slot;
                 this._press(key);
-            } else if (this._touchPressed &&
-                       event.type() == Clutter.EventType.TOUCH_END) {
-                this._touchPressed = false;
-                this._release(key);
+            } else if (event.type() === Clutter.EventType.TOUCH_END) {
+                if (!this._touchPressSlot ||
+                    this._touchPressSlot === slot)
+                    this._release(key);
+
+                if (this._touchPressSlot === slot)
+                    this._touchPressSlot = null;
             }
             return Clutter.EVENT_PROPAGATE;
         });
@@ -534,9 +535,9 @@ var KeyboardModel = class {
     _loadModel(groupName) {
         let file = Gio.File.new_for_uri('resource:///org/gnome/shell/osk-layouts/%s.json'.format(groupName));
         let [success_, contents] = file.load_contents(null);
-        contents = ByteArray.toString(contents);
 
-        return JSON.parse(contents);
+        const decoder = new TextDecoder();
+        return JSON.parse(decoder.decode(contents));
     }
 
     getLevels() {
@@ -1037,9 +1038,7 @@ var EmojiSelection = GObject.registerClass({
         let file = Gio.File.new_for_uri('resource:///org/gnome/shell/osk-layouts/emoji.json');
         let [success_, contents] = file.load_contents(null);
 
-        if (contents instanceof Uint8Array)
-            contents = imports.byteArray.toString(contents);
-        let emoji = JSON.parse(contents);
+        let emoji = JSON.parse(new TextDecoder().decode(contents));
 
         let variants = [];
         let currentKey = 0;
@@ -1875,8 +1874,11 @@ var Keyboard = GObject.registerClass({
             this.translation_y = -this.height;
         });
 
-        // Queue a relayout so the keyboardBox can update its chrome region.
-        keyboardBox.queue_relayout();
+        // Toggle visibility so the keyboardBox can update its chrome region.
+        if (!Meta.is_wayland_compositor()) {
+            keyboardBox.hide();
+            keyboardBox.show();
+        }
     }
 
     _animateHide() {
@@ -2123,12 +2125,12 @@ var KeyboardController = class {
     }
 
     keyvalPress(keyval) {
-        this._virtualDevice.notify_keyval(Clutter.get_current_event_time(),
+        this._virtualDevice.notify_keyval(Clutter.get_current_event_time() * 1000,
                                           keyval, Clutter.KeyState.PRESSED);
     }
 
     keyvalRelease(keyval) {
-        this._virtualDevice.notify_keyval(Clutter.get_current_event_time(),
+        this._virtualDevice.notify_keyval(Clutter.get_current_event_time() * 1000,
                                           keyval, Clutter.KeyState.RELEASED);
     }
 };

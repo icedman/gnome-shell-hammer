@@ -21,7 +21,8 @@ const WorkspaceAnimation = imports.ui.workspaceAnimation;
 const { loadInterfaceXML } = imports.misc.fileUtils;
 
 var SHELL_KEYBINDINGS_SCHEMA = 'org.gnome.shell.keybindings';
-var MINIMIZE_WINDOW_ANIMATION_TIME = 200;
+var MINIMIZE_WINDOW_ANIMATION_TIME = 400;
+var MINIMIZE_WINDOW_ANIMATION_MODE = Clutter.AnimationMode.EASE_OUT_EXPO;
 var SHOW_WINDOW_ANIMATION_TIME = 150;
 var DIALOG_SHOW_WINDOW_ANIMATION_TIME = 100;
 var DESTROY_WINDOW_ANIMATION_TIME = 150;
@@ -907,14 +908,7 @@ var WindowManager = class {
         global.display.connect('init-xserver', (display, task) => {
             IBusManager.getIBusManager().restartDaemon(['--xim']);
 
-            /* Timeout waiting for start job completion after 5 seconds */
-            let cancellable = new Gio.Cancellable();
-            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
-                cancellable.cancel();
-                return GLib.SOURCE_REMOVE;
-            });
-
-            this._startX11Services(task, cancellable);
+            this._startX11Services(task);
 
             return true;
         });
@@ -960,6 +954,7 @@ var WindowManager = class {
 
         global.display.connect('notify::focus-window', updateUnfullscreenGesture);
         global.display.connect('in-fullscreen-changed', updateUnfullscreenGesture);
+        updateUnfullscreenGesture();
 
         global.stage.add_action(topDragAction);
 
@@ -972,19 +967,22 @@ var WindowManager = class {
         });
     }
 
-    async _startX11Services(task, cancellable) {
+    async _startX11Services(task) {
+        let status = true;
         try {
             await Shell.util_start_systemd_unit(
-                'gnome-session-x11-services-ready.target', 'fail', cancellable);
+                'gnome-session-x11-services-ready.target', 'fail', null);
         } catch (e) {
             // Ignore NOT_SUPPORTED error, which indicates we are not systemd
             // managed and gnome-session will have taken care of everything
             // already.
             // Note that we do log cancellation from here.
-            if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_SUPPORTED))
+            if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_SUPPORTED)) {
                 log('Error starting X11 services: %s'.format(e.message));
+                status = false;
+            }
         } finally {
-            task.return_boolean(true);
+            task.return_boolean(status);
         }
     }
 
@@ -1122,7 +1120,8 @@ var WindowManager = class {
     }
 
     _shouldAnimate() {
-        return !(Main.overview.visible || this._workspaceAnimation.gestureActive);
+        const overviewOpen = Main.overview.visible && !Main.overview.closing;
+        return !(overviewOpen || this._workspaceAnimation.gestureActive);
     }
 
     _shouldAnimateActor(actor, types) {
@@ -1156,7 +1155,7 @@ var WindowManager = class {
             actor.ease({
                 opacity: 0,
                 duration: MINIMIZE_WINDOW_ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                mode: MINIMIZE_WINDOW_ANIMATION_MODE,
                 onStopped: () => this._minimizeWindowDone(shellwm, actor),
             });
         } else {
@@ -1187,7 +1186,7 @@ var WindowManager = class {
                 x: xDest,
                 y: yDest,
                 duration: MINIMIZE_WINDOW_ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_IN_EXPO,
+                mode: MINIMIZE_WINDOW_ANIMATION_MODE,
                 onStopped: () => this._minimizeWindowDone(shellwm, actor),
             });
         }
@@ -1221,7 +1220,7 @@ var WindowManager = class {
             actor.ease({
                 opacity: 255,
                 duration: MINIMIZE_WINDOW_ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                mode: MINIMIZE_WINDOW_ANIMATION_MODE,
                 onStopped: () => this._unminimizeWindowDone(shellwm, actor),
             });
         } else {
@@ -1243,7 +1242,7 @@ var WindowManager = class {
                 actor.set_scale(0, 0);
             }
 
-            let rect = actor.meta_window.get_frame_rect();
+            let rect = actor.meta_window.get_buffer_rect();
             let [xDest, yDest] = [rect.x, rect.y];
 
             actor.show();
@@ -1253,7 +1252,7 @@ var WindowManager = class {
                 x: xDest,
                 y: yDest,
                 duration: MINIMIZE_WINDOW_ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_IN_EXPO,
+                mode: MINIMIZE_WINDOW_ANIMATION_MODE,
                 onStopped: () => this._unminimizeWindowDone(shellwm, actor),
             });
         }
@@ -1286,7 +1285,7 @@ var WindowManager = class {
     _prepareAnimationInfo(shellwm, actor, oldFrameRect, _change) {
         // Position a clone of the window on top of the old position,
         // while actor updates are frozen.
-        let actorContent = Shell.util_get_content_for_window_actor(actor, oldFrameRect);
+        let actorContent = actor.paint_to_content(oldFrameRect);
         let actorClone = new St.Widget({ content: actorContent });
         actorClone.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
         actorClone.set_position(oldFrameRect.x, oldFrameRect.y);
@@ -1449,7 +1448,19 @@ var WindowManager = class {
         dimmer.setDimmed(false, this._shouldAnimate());
     }
 
-    _mapWindow(shellwm, actor) {
+    _waitForOverviewToHide() {
+        if (!Main.overview.visible)
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            const id = Main.overview.connect('hidden', () => {
+                Main.overview.disconnect(id);
+                resolve();
+            });
+        });
+    }
+
+    async _mapWindow(shellwm, actor) {
         actor._windowType = actor.meta_window.get_window_type();
         actor._notifyWindowTypeSignalId =
             actor.meta_window.connect('notify::window-type', () => {
@@ -1491,6 +1502,7 @@ var WindowManager = class {
             actor.show();
             this._mapping.add(actor);
 
+            await this._waitForOverviewToHide();
             actor.ease({
                 opacity: 255,
                 scale_x: 1,
@@ -1508,6 +1520,7 @@ var WindowManager = class {
             actor.show();
             this._mapping.add(actor);
 
+            await this._waitForOverviewToHide();
             actor.ease({
                 opacity: 255,
                 scale_x: 1,
@@ -1714,8 +1727,10 @@ var WindowManager = class {
         let [, , , target] = binding.get_name().split('-');
         let apps = AppFavorites.getAppFavorites().getFavorites();
         let app = apps[target - 1];
-        if (app)
+        if (app) {
+            Main.overview.hide();
             app.activate();
+        }
     }
 
     _toggleAppMenu() {
@@ -1858,24 +1873,9 @@ var WindowManager = class {
         if (event.type() !== Clutter.EventType.SCROLL)
             return Clutter.EVENT_PROPAGATE;
 
-        if (event.is_pointer_emulated())
+        const direction = event.get_scroll_direction();
+        if (direction === Clutter.ScrollDirection.SMOOTH)
             return Clutter.EVENT_PROPAGATE;
-
-        let direction = event.get_scroll_direction();
-        if (direction === Clutter.ScrollDirection.SMOOTH) {
-            const [dx, dy] = event.get_scroll_delta();
-            if (Math.abs(dx) > Math.abs(dy)) {
-                direction = dx < 0
-                    ? Clutter.ScrollDirection.LEFT
-                    : Clutter.ScrollDirection.RIGHT;
-            } else if (Math.abs(dy) > Math.abs(dx)) {
-                direction = dy < 0
-                    ? Clutter.ScrollDirection.UP
-                    : Clutter.ScrollDirection.DOWN;
-            } else {
-                return Clutter.EVENT_PROPAGATE;
-            }
-        }
 
         const workspaceManager = global.workspace_manager;
         const vertical = workspaceManager.layout_rows === -1;

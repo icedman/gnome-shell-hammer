@@ -164,6 +164,7 @@ class AppSwitcherPopup extends SwitcherPopup.SwitcherPopup {
     }
 
     _keyPressHandler(keysym, action) {
+        const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
         if (action == Meta.KeyBindingAction.SWITCH_GROUP) {
             if (!this._thumbnailsFocused)
                 this._select(this._selectedIndex, 0);
@@ -179,9 +180,9 @@ class AppSwitcherPopup extends SwitcherPopup.SwitcherPopup {
             this._quitApplication(this._selectedIndex);
         } else if (this._thumbnailsFocused) {
             if (keysym === Clutter.KEY_Left)
-                this._select(this._selectedIndex, this._previousWindow());
+                this._select(this._selectedIndex, rtl ? this._nextWindow() : this._previousWindow());
             else if (keysym === Clutter.KEY_Right)
-                this._select(this._selectedIndex, this._nextWindow());
+                this._select(this._selectedIndex, rtl ? this._previousWindow() : this._nextWindow());
             else if (keysym === Clutter.KEY_Up)
                 this._select(this._selectedIndex, null, true);
             else if (keysym === Clutter.KEY_w || keysym === Clutter.KEY_W || keysym === Clutter.KEY_F4)
@@ -189,9 +190,9 @@ class AppSwitcherPopup extends SwitcherPopup.SwitcherPopup {
             else
                 return Clutter.EVENT_PROPAGATE;
         } else if (keysym == Clutter.KEY_Left) {
-            this._select(this._previous());
+            this._select(rtl ? this._next() : this._previous());
         } else if (keysym == Clutter.KEY_Right) {
-            this._select(this._next());
+            this._select(rtl ? this._previous() : this._next());
         } else if (keysym == Clutter.KEY_Down) {
             this._select(this._selectedIndex, 0);
         } else {
@@ -239,10 +240,6 @@ class AppSwitcherPopup extends SwitcherPopup.SwitcherPopup {
             this._select(n, this._currentWindow);
         else
             this._select(n);
-    }
-
-    _itemEnteredHandler(n) {
-        this._select(n);
     }
 
     _windowActivated(thumbnailSwitcher, n) {
@@ -401,6 +398,7 @@ class CyclerHighlight extends St.Widget {
     _init() {
         super._init({ layout_manager: new Clutter.BinLayout() });
         this._window = null;
+        this._sizeChangedId = 0;
 
         this._clone = new Clutter.Clone();
         this.add_actor(this._clone);
@@ -414,7 +412,6 @@ class CyclerHighlight extends St.Widget {
 
         this.add_constraint(constraint);
 
-        this.connect('notify::allocation', this._onAllocationChanged.bind(this));
         this.connect('destroy', this._onDestroy.bind(this));
     }
 
@@ -422,30 +419,39 @@ class CyclerHighlight extends St.Widget {
         if (this._window == w)
             return;
 
+        if (this._sizeChangedId)
+            this._window.disconnect(this._sizeChangedId);
+
         this._window = w;
 
         if (this._clone.source)
             this._clone.source.sync_visibility();
 
-        const windowActor = this._window?.get_compositor_private();
+        const windowActor = this._window?.get_compositor_private() ?? null;
 
         if (windowActor)
             windowActor.hide();
 
         this._clone.source = windowActor;
-    }
 
-    _onAllocationChanged() {
-        if (!this._window) {
+        if (this._window) {
+            this._onSizeChanged();
+            this._sizeChangedId = this._window.connect('size-changed',
+                this._onSizeChanged.bind(this));
+        } else {
             this._highlight.set_size(0, 0);
             this._highlight.hide();
-        } else {
-            let [x, y] = this.allocation.get_origin();
-            let rect = this._window.get_frame_rect();
-            this._highlight.set_size(rect.width, rect.height);
-            this._highlight.set_position(rect.x - x, rect.y - y);
-            this._highlight.show();
         }
+    }
+
+    _onSizeChanged() {
+        const bufferRect = this._window.get_buffer_rect();
+        const rect = this._window.get_frame_rect();
+        this._highlight.set_size(rect.width, rect.height);
+        this._highlight.set_position(
+            rect.x - bufferRect.x,
+            rect.y - bufferRect.y);
+        this._highlight.show();
     }
 
     _onDestroy() {
@@ -589,14 +595,15 @@ class WindowSwitcherPopup extends SwitcherPopup.SwitcherPopup {
     }
 
     _keyPressHandler(keysym, action) {
+        const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
         if (action == Meta.KeyBindingAction.SWITCH_WINDOWS)
             this._select(this._next());
         else if (action == Meta.KeyBindingAction.SWITCH_WINDOWS_BACKWARD)
             this._select(this._previous());
         else if (keysym == Clutter.KEY_Left)
-            this._select(this._previous());
+            this._select(rtl ? this._next() : this._previous());
         else if (keysym == Clutter.KEY_Right)
-            this._select(this._next());
+            this._select(rtl ? this._previous() : this._next());
         else if (keysym === Clutter.KEY_w || keysym === Clutter.KEY_W || keysym === Clutter.KEY_F4)
             this._closeWindow(this._selectedIndex);
         else
@@ -686,7 +693,7 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
             workspace = workspaceManager.get_active_workspace();
         }
 
-        let allWindows = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
+        let allWindows = getWindows(workspace);
 
         // Construct the AppIcons, add to the popup
         for (let i = 0; i < apps.length; i++) {
@@ -699,8 +706,8 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
                 this._addIcon(appIcon);
         }
 
-        this._curApp = -1;
         this._altTabPopup = altTabPopup;
+        this._delayedHighlighted = -1;
         this._mouseTimeOutId = 0;
 
         this.connect('destroy', this._onDestroy.bind(this));
@@ -758,7 +765,9 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
     }
 
     vfunc_get_preferred_height(forWidth) {
-        this._setIconSize();
+        if (!this._iconSize)
+            this._setIconSize();
+
         return super.vfunc_get_preferred_height(forWidth);
     }
 
@@ -783,19 +792,29 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
         }
     }
 
-    // We override SwitcherList's _onItemEnter method to delay
+    // We override SwitcherList's _onItemMotion method to delay
     // activation when the thumbnail list is open
-    _onItemEnter(item) {
+    _onItemMotion(item) {
+        if (item === this._items[this._highlighted] ||
+            item === this._items[this._delayedHighlighted])
+            return Clutter.EVENT_PROPAGATE;
+
         const index = this._items.indexOf(item);
 
-        if (this._mouseTimeOutId != 0)
+        if (this._mouseTimeOutId !== 0) {
             GLib.source_remove(this._mouseTimeOutId);
+            this._delayedHighlighted = -1;
+            this._mouseTimeOutId = 0;
+        }
+
         if (this._altTabPopup.thumbnailsVisible) {
+            this._delayedHighlighted = index;
             this._mouseTimeOutId = GLib.timeout_add(
                 GLib.PRIORITY_DEFAULT,
                 APP_ICON_HOVER_TIMEOUT,
                 () => {
                     this._enterItem(index);
+                    this._delayedHighlighted = -1;
                     this._mouseTimeOutId = 0;
                     return GLib.SOURCE_REMOVE;
                 });
@@ -803,6 +822,8 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
         } else {
             this._itemEntered(index);
         }
+
+        return Clutter.EVENT_PROPAGATE;
     }
 
     _enterItem(index) {
@@ -820,21 +841,20 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
     // show a dim arrow, but show a bright arrow when they are
     // highlighted.
     highlight(n, justOutline) {
-        if (this.icons[this._curApp]) {
-            if (this.icons[this._curApp].cachedWindows.length == 1)
-                this._arrows[this._curApp].hide();
+        if (this.icons[this._highlighted]) {
+            if (this.icons[this._highlighted].cachedWindows.length === 1)
+                this._arrows[this._highlighted].hide();
             else
-                this._arrows[this._curApp].remove_style_pseudo_class('highlighted');
+                this._arrows[this._highlighted].remove_style_pseudo_class('highlighted');
         }
 
         super.highlight(n, justOutline);
-        this._curApp = n;
 
-        if (this._curApp != -1) {
-            if (justOutline && this.icons[this._curApp].cachedWindows.length == 1)
-                this._arrows[this._curApp].show();
+        if (this._highlighted !== -1) {
+            if (justOutline && this.icons[this._highlighted].cachedWindows.length === 1)
+                this._arrows[this._highlighted].show();
             else
-                this._arrows[this._curApp].add_style_pseudo_class('highlighted');
+                this._arrows[this._highlighted].add_style_pseudo_class('highlighted');
         }
     }
 

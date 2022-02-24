@@ -46,6 +46,10 @@ var NotificationsBox = GObject.registerClass({
 
         this.add_child(this._scrollView);
 
+        this._settings = new Gio.Settings({
+            schema_id: 'org.gnome.desktop.notifications',
+        });
+
         this._sources = new Map();
         Main.messageTray.getSources().forEach(source => {
             this._sourceAdded(Main.messageTray, source, true);
@@ -176,6 +180,14 @@ var NotificationsBox = GObject.registerClass({
         this._updateSourceBoxStyle(source, obj, box);
     }
 
+    _wakeUpScreenForSource(source) {
+        if (!this._settings.get_boolean('show-banners'))
+            return;
+        const obj = this._sources.get(source);
+        if (obj?.sourceBox.visible)
+            this.emit('wake-up-screen');
+    }
+
     _sourceAdded(tray, source, initial) {
         let obj = {
             visible: source.policy.showInLockScreen,
@@ -235,8 +247,7 @@ var NotificationsBox = GObject.registerClass({
             });
 
             this._updateVisibility();
-            if (obj.sourceBox.visible)
-                this.emit('wake-up-screen');
+            this._wakeUpScreenForSource(source);
         }
     }
 
@@ -268,8 +279,7 @@ var NotificationsBox = GObject.registerClass({
         obj.sourceBox.visible = obj.visible && (source.unseenCount > 0);
 
         this._updateVisibility();
-        if (obj.sourceBox.visible)
-            this.emit('wake-up-screen');
+        this._wakeUpScreenForSource(source);
     }
 
     _visibleChanged(source, obj) {
@@ -280,8 +290,7 @@ var NotificationsBox = GObject.registerClass({
         obj.sourceBox.visible = obj.visible && source.unseenCount > 0;
 
         this._updateVisibility();
-        if (obj.sourceBox.visible)
-            this.emit('wake-up-screen');
+        this._wakeUpScreenForSource(source);
     }
 
     _detailedChanged(source, obj) {
@@ -348,7 +357,7 @@ class UnlockDialogClock extends St.BoxLayout {
         this._powerModeChangedId = this._monitorManager.connect(
             'power-save-mode-changed', () => (this._hint.opacity = 0));
 
-        this._idleMonitor = Meta.IdleMonitor.get_core();
+        this._idleMonitor = global.backend.get_core_idle_monitor();
         this._idleWatchId = this._idleMonitor.add_idle_watch(HINT_TIMEOUT * 1000, () => {
             this._hint.ease({
                 opacity: 255,
@@ -563,6 +572,7 @@ var UnlockDialog = GObject.registerClass({
         this._otherUserButton = new St.Button({
             style_class: 'modal-dialog-button button switch-user-button',
             accessible_name: _('Log in as another user'),
+            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
             reactive: false,
             opacity: 0,
             x_align: Clutter.ActorAlign.END,
@@ -575,6 +585,10 @@ var UnlockDialog = GObject.registerClass({
         this._screenSaverSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.screensaver' });
 
         this._userSwitchEnabledId = this._screenSaverSettings.connect('changed::user-switch-enabled',
+            this._updateUserSwitchVisibility.bind(this));
+
+        this._lockdownSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.lockdown' });
+        this._lockdownSettings.connect('changed::disable-user-switching',
             this._updateUserSwitchVisibility.bind(this));
 
         this._userLoadedId = this._user.connect('notify::is-loaded',
@@ -594,7 +608,7 @@ var UnlockDialog = GObject.registerClass({
             this._otherUserButton);
         this.add_child(mainBox);
 
-        this._idleMonitor = Meta.IdleMonitor.get_core();
+        this._idleMonitor = global.backend.get_core_idle_monitor();
         this._idleWatchId = this._idleMonitor.add_idle_watch(IDLE_TIMEOUT * 1000, this._escape.bind(this));
 
         this.connect('destroy', this._onDestroy.bind(this));
@@ -858,7 +872,8 @@ var UnlockDialog = GObject.registerClass({
 
     _updateUserSwitchVisibility() {
         this._otherUserButton.visible = this._userManager.can_switch() &&
-            this._screenSaverSettings.get_boolean('user-switch-enabled');
+            this._screenSaverSettings.get_boolean('user-switch-enabled') &&
+            !this._lockdownSettings.get_boolean('disable-user-switching');
     }
 
     cancel() {
