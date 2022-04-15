@@ -112,11 +112,13 @@ function _callRemote(obj, method, ...args) {
  * until the window has been mapped and exposed, use waitTestWindows().
  */
 function createTestWindow(params) {
-    params = Params.parse(params, { width: 640,
-                                    height: 480,
-                                    alpha: false,
-                                    maximized: false,
-                                    redraws: false });
+    params = Params.parse(params, {
+        width: 640,
+        height: 480,
+        alpha: false,
+        maximized: false,
+        redraws: false,
+    });
 
     let perfHelper = _getPerfHelper();
     return _callRemote(perfHelper, perfHelper.CreateWindowRemote,
@@ -222,9 +224,9 @@ function _collect(scriptModule, outputFile) {
             let monitor = monitors[i];
             if (i != 0)
                 Shell.write_string_to_stream(out, ', ');
-            Shell.write_string_to_stream(out, '"%s%dx%d+%d+%d"'.format(i == primary ? "*" : "",
-                                                                       monitor.width, monitor.height,
-                                                                       monitor.x, monitor.y));
+            const prefix = i === primary ? '*' : '';
+            Shell.write_string_to_stream(out,
+                `"${prefix}${monitor.width}x${monitor.height}+${monitor.x}+${monitor.y}"`);
         }
         Shell.write_string_to_stream(out, ' ]');
 

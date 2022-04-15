@@ -10,6 +10,8 @@ const ParentalControlsManager = imports.misc.parentalControlsManager;
 const RemoteSearch = imports.ui.remoteSearch;
 const Util = imports.misc.util;
 
+const { Highlighter } = imports.misc.util;
+
 const SEARCH_PROVIDERS_SCHEMA = 'org.gnome.desktop.search-providers';
 
 var MAX_LIST_SEARCH_RESULTS_ROWS = 5;
@@ -77,8 +79,6 @@ class ListSearchResult extends SearchResult {
         });
         this.set_child(content);
 
-        this._termsChangedId = 0;
-
         let titleBox = new St.BoxLayout({
             style_class: 'list-search-result-title',
             y_align: Clutter.ActorAlign.CENTER,
@@ -106,14 +106,11 @@ class ListSearchResult extends SearchResult {
             });
             content.add_child(this._descriptionLabel);
 
-            this._termsChangedId =
-                this._resultsView.connect('terms-changed',
-                                          this._highlightTerms.bind(this));
+            this._resultsView.connectObject(
+                'terms-changed', this._highlightTerms.bind(this), this);
 
             this._highlightTerms();
         }
-
-        this.connect('destroy', this._onDestroy.bind(this));
     }
 
     get ICON_SIZE() {
@@ -123,12 +120,6 @@ class ListSearchResult extends SearchResult {
     _highlightTerms() {
         let markup = this._resultsView.highlightTerms(this.metaInfo['description'].split('\n')[0]);
         this._descriptionLabel.clutter_text.set_markup(markup);
-    }
-
-    _onDestroy() {
-        if (this._termsChangedId)
-            this._resultsView.disconnect(this._termsChangedId);
-        this._termsChangedId = 0;
     }
 });
 
@@ -230,18 +221,18 @@ var SearchResultsBase = GObject.registerClass({
             this.provider.getResultMetas(metasNeeded, metas => {
                 if (this._cancellable.is_cancelled()) {
                     if (metas.length > 0)
-                        log('Search provider %s returned results after the request was canceled'.format(this.provider.id));
+                        log(`Search provider ${this.provider.id} returned results after the request was canceled`);
                     callback(false);
                     return;
                 }
                 if (metas.length != metasNeeded.length) {
-                    log('Wrong number of result metas returned by search provider %s: '.format(this.provider.id) +
-                        'expected %d but got %d'.format(metasNeeded.length, metas.length));
+                    log(`Wrong number of result metas returned by search provider ${this.provider.id}: ` +
+                        `expected ${metasNeeded.length} but got ${metas.length}`);
                     callback(false);
                     return;
                 }
                 if (metas.some(meta => !meta.name || !meta.id)) {
-                    log('Invalid result meta returned from search provider %s'.format(this.provider.id));
+                    log(`Invalid result meta returned from search provider ${this.provider.id}`);
                     callback(false);
                     return;
                 }
@@ -596,7 +587,7 @@ var SearchResultsView = GObject.registerClass({
 
         this._providers = [];
 
-        this._highlightRegex = null;
+        this._highlighter = new Highlighter();
 
         this._searchSettings = new Gio.Settings({ schema_id: SEARCH_PROVIDERS_SCHEMA });
         this._searchSettings.connect('changed::disabled', this._reloadRemoteProviders.bind(this));
@@ -739,8 +730,7 @@ var SearchResultsView = GObject.registerClass({
         if (this._searchTimeoutId == 0)
             this._searchTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, this._onSearchTimeout.bind(this));
 
-        let escapedTerms = this._terms.map(term => Shell.util_regex_escape(term));
-        this._highlightRegex = new RegExp('(%s)'.format(escapedTerms.join('|')), 'gi');
+        this._highlighter = new Highlighter(this._terms);
 
         this.emit('terms-changed');
     }
@@ -894,10 +884,7 @@ var SearchResultsView = GObject.registerClass({
         if (!description)
             return '';
 
-        if (!this._highlightRegex)
-            return description;
-
-        return description.replace(this._highlightRegex, '<b>$1</b>');
+        return this._highlighter.highlight(description);
     }
 });
 
@@ -914,19 +901,27 @@ class ProviderInfo extends St.Button {
             y_align: Clutter.ActorAlign.START,
         });
 
-        this._content = new St.BoxLayout({ vertical: false,
-                                           style_class: 'list-search-provider-content' });
+        this._content = new St.BoxLayout({
+            vertical: false,
+            style_class: 'list-search-provider-content',
+        });
         this.set_child(this._content);
 
-        let icon = new St.Icon({ icon_size: this.PROVIDER_ICON_SIZE,
-                                 gicon: provider.appInfo.get_icon() });
+        const icon = new St.Icon({
+            icon_size: this.PROVIDER_ICON_SIZE,
+            gicon: provider.appInfo.get_icon(),
+        });
 
-        let detailsBox = new St.BoxLayout({ style_class: 'list-search-provider-details',
-                                            vertical: true,
-                                            x_expand: true });
+        const detailsBox = new St.BoxLayout({
+            style_class: 'list-search-provider-details',
+            vertical: true,
+            x_expand: true,
+        });
 
-        let nameLabel = new St.Label({ text: provider.appInfo.get_name(),
-                                       x_align: Clutter.ActorAlign.START });
+        const nameLabel = new St.Label({
+            text: provider.appInfo.get_name(),
+            x_align: Clutter.ActorAlign.START,
+        });
 
         this._moreLabel = new St.Label({ x_align: Clutter.ActorAlign.START });
 

@@ -2,7 +2,6 @@
 /* exported Panel */
 
 const { Atk, Clutter, GLib, GObject, Meta, Shell, St } = imports.gi;
-const Cairo = imports.cairo;
 
 const Animation = imports.ui.animation;
 const { AppMenu } = imports.ui.appMenu;
@@ -39,7 +38,6 @@ var AppMenuButton = GObject.registerClass({
 
         this._menuManager = panel.menuManager;
         this._targetApp = null;
-        this._busyNotifyId = 0;
 
         let bin = new St.Bin({ name: 'appMenu' });
         this.add_actor(bin);
@@ -67,15 +65,18 @@ var AppMenuButton = GObject.registerClass({
             iconEffect.enabled = themeNode.get_icon_style() == St.IconStyle.SYMBOLIC;
         });
 
-        this._label = new St.Label({ y_expand: true,
-                                     y_align: Clutter.ActorAlign.CENTER });
+        this._label = new St.Label({
+            y_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
         this._container.add_actor(this._label);
 
         this._visible = !Main.overview.visible;
         if (!this._visible)
             this.hide();
-        this._overviewHidingId = Main.overview.connect('hiding', this._sync.bind(this));
-        this._overviewShowingId = Main.overview.connect('showing', this._sync.bind(this));
+        Main.overview.connectObject(
+            'hiding', this._sync.bind(this),
+            'showing', this._sync.bind(this), this);
 
         this._spinner = new Animation.Spinner(PANEL_ICON_SIZE, {
             animate: true,
@@ -87,14 +88,12 @@ var AppMenuButton = GObject.registerClass({
         this.setMenu(menu);
         this._menuManager.addMenu(menu);
 
-        let tracker = Shell.WindowTracker.get_default();
-        let appSys = Shell.AppSystem.get_default();
-        this._focusAppNotifyId =
-            tracker.connect('notify::focus-app', this._focusAppChanged.bind(this));
-        this._appStateChangedSignalId =
-            appSys.connect('app-state-changed', this._onAppStateChanged.bind(this));
-        this._switchWorkspaceNotifyId =
-            global.window_manager.connect('switch-workspace', this._sync.bind(this));
+        Shell.WindowTracker.get_default().connectObject('notify::focus-app',
+            this._focusAppChanged.bind(this), this);
+        Shell.AppSystem.get_default().connectObject('app-state-changed',
+            this._onAppStateChanged.bind(this), this);
+        global.window_manager.connectObject('switch-workspace',
+            this._sync.bind(this), this);
 
         this._sync();
     }
@@ -194,15 +193,12 @@ var AppMenuButton = GObject.registerClass({
         let targetApp = this._findTargetApp();
 
         if (this._targetApp != targetApp) {
-            if (this._busyNotifyId) {
-                this._targetApp.disconnect(this._busyNotifyId);
-                this._busyNotifyId = 0;
-            }
+            this._targetApp?.disconnectObject(this);
 
             this._targetApp = targetApp;
 
             if (this._targetApp) {
-                this._busyNotifyId = this._targetApp.connect('notify::busy', this._sync.bind(this));
+                this._targetApp.connectObject('notify::busy', this._sync.bind(this), this);
                 this._label.set_text(this._targetApp.get_name());
                 this.set_accessible_name(this._targetApp.get_name());
 
@@ -229,33 +225,6 @@ var AppMenuButton = GObject.registerClass({
         this.menu.setApp(this._targetApp);
         this.emit('changed');
     }
-
-    _onDestroy() {
-        if (this._appStateChangedSignalId > 0) {
-            let appSys = Shell.AppSystem.get_default();
-            appSys.disconnect(this._appStateChangedSignalId);
-            this._appStateChangedSignalId = 0;
-        }
-        if (this._focusAppNotifyId > 0) {
-            let tracker = Shell.WindowTracker.get_default();
-            tracker.disconnect(this._focusAppNotifyId);
-            this._focusAppNotifyId = 0;
-        }
-        if (this._overviewHidingId > 0) {
-            Main.overview.disconnect(this._overviewHidingId);
-            this._overviewHidingId = 0;
-        }
-        if (this._overviewShowingId > 0) {
-            Main.overview.disconnect(this._overviewShowingId);
-            this._overviewShowingId = 0;
-        }
-        if (this._switchWorkspaceNotifyId > 0) {
-            global.window_manager.disconnect(this._switchWorkspaceNotifyId);
-            this._switchWorkspaceNotifyId = 0;
-        }
-
-        super._onDestroy();
-    }
 });
 
 var ActivitiesButton = GObject.registerClass(
@@ -268,8 +237,10 @@ class ActivitiesButton extends PanelMenu.Button {
 
         /* Translators: If there is no suitable word for "Activities"
            in your language, you can use the word for "Overview". */
-        this._label = new St.Label({ text: _("Activities"),
-                                     y_align: Clutter.ActorAlign.CENTER });
+        this._label = new St.Label({
+            text: _('Activities'),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
         this.add_actor(this._label);
 
         this.label_actor = this._label;
@@ -341,170 +312,6 @@ class ActivitiesButton extends PanelMenu.Button {
         GLib.source_remove(this._xdndTimeOut);
         this._xdndTimeOut = 0;
         return GLib.SOURCE_REMOVE;
-    }
-});
-
-var PanelCorner = GObject.registerClass(
-class PanelCorner extends St.DrawingArea {
-    _init(side) {
-        this._side = side;
-
-        super._init({ style_class: 'panel-corner' });
-    }
-
-    _findRightmostButton(container) {
-        if (!container.get_children)
-            return null;
-
-        let children = container.get_children();
-
-        if (!children || children.length == 0)
-            return null;
-
-        // Start at the back and work backward
-        let index;
-        for (index = children.length - 1; index >= 0; index--) {
-            if (children[index].visible)
-                break;
-        }
-        if (index < 0)
-            return null;
-
-        if (!(children[index] instanceof St.Widget))
-            return null;
-
-        if (!children[index].has_style_class_name('panel-menu') &&
-            !children[index].has_style_class_name('panel-button'))
-            return this._findRightmostButton(children[index]);
-
-        return children[index];
-    }
-
-    _findLeftmostButton(container) {
-        if (!container.get_children)
-            return null;
-
-        let children = container.get_children();
-
-        if (!children || children.length == 0)
-            return null;
-
-        // Start at the front and work forward
-        let index;
-        for (index = 0; index < children.length; index++) {
-            if (children[index].visible)
-                break;
-        }
-        if (index == children.length)
-            return null;
-
-        if (!(children[index] instanceof St.Widget))
-            return null;
-
-        if (!children[index].has_style_class_name('panel-menu') &&
-            !children[index].has_style_class_name('panel-button'))
-            return this._findLeftmostButton(children[index]);
-
-        return children[index];
-    }
-
-    setStyleParent(box) {
-        let side = this._side;
-
-        let rtlAwareContainer = box instanceof St.BoxLayout;
-        if (rtlAwareContainer &&
-            box.get_text_direction() == Clutter.TextDirection.RTL) {
-            if (this._side == St.Side.LEFT)
-                side = St.Side.RIGHT;
-            else if (this._side == St.Side.RIGHT)
-                side = St.Side.LEFT;
-        }
-
-        let button;
-        if (side == St.Side.LEFT)
-            button = this._findLeftmostButton(box);
-        else if (side == St.Side.RIGHT)
-            button = this._findRightmostButton(box);
-
-        if (button) {
-            if (this._button) {
-                if (this._buttonStyleChangedSignalId) {
-                    this._button.disconnect(this._buttonStyleChangedSignalId);
-                    this._button.style = null;
-                }
-
-                if (this._buttonDestroySignalId)
-                    this._button.disconnect(this._buttonDestroySignalId);
-            }
-
-            this._button = button;
-
-            this._buttonDestroySignalId = button.connect('destroy', () => {
-                if (this._button == button) {
-                    this._button = null;
-                    this._buttonStyleChangedSignalId = 0;
-                }
-            });
-
-            // Synchronize the locate button's pseudo classes with this corner
-            this._buttonStyleChangedSignalId = button.connect('style-changed',
-                () => {
-                    let pseudoClass = button.get_style_pseudo_class();
-                    this.set_style_pseudo_class(pseudoClass);
-                });
-        }
-    }
-
-    vfunc_repaint() {
-        let node = this.get_theme_node();
-
-        let cornerRadius = node.get_length("-panel-corner-radius");
-        let borderWidth = node.get_length('-panel-corner-border-width');
-
-        let backgroundColor = node.get_color('-panel-corner-background-color');
-
-        let cr = this.get_context();
-        cr.setOperator(Cairo.Operator.SOURCE);
-
-        cr.moveTo(0, 0);
-        if (this._side == St.Side.LEFT) {
-            cr.arc(cornerRadius,
-                   borderWidth + cornerRadius,
-                   cornerRadius, Math.PI, 3 * Math.PI / 2);
-        } else {
-            cr.arc(0,
-                   borderWidth + cornerRadius,
-                   cornerRadius, 3 * Math.PI / 2, 2 * Math.PI);
-        }
-        cr.lineTo(cornerRadius, 0);
-        cr.closePath();
-
-        Clutter.cairo_set_source_color(cr, backgroundColor);
-        cr.fill();
-
-        cr.$dispose();
-    }
-
-    vfunc_style_changed() {
-        super.vfunc_style_changed();
-        let node = this.get_theme_node();
-
-        let cornerRadius = node.get_length("-panel-corner-radius");
-        let borderWidth = node.get_length('-panel-corner-border-width');
-
-        const transitionDuration =
-            node.get_transition_duration() / St.Settings.get().slow_down_factor;
-        const opacity = node.get_double('-panel-corner-opacity');
-
-        this.set_size(cornerRadius, borderWidth + cornerRadius);
-        this.translation_y = -borderWidth;
-
-        this.remove_transition('opacity');
-        this.ease({
-            opacity: opacity * 255,
-            duration: transitionDuration,
-            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
-        });
     }
 });
 
@@ -633,13 +440,16 @@ const PANEL_ITEM_IMPLEMENTATIONS = {
     'a11y': imports.ui.status.accessibility.ATIndicator,
     'keyboard': imports.ui.status.keyboard.InputSourceIndicator,
     'dwellClick': imports.ui.status.dwellClick.DwellClickIndicator,
+    'screenRecording': imports.ui.status.remoteAccess.ScreenRecordingIndicator,
 };
 
 var Panel = GObject.registerClass(
 class Panel extends St.Widget {
     _init() {
-        super._init({ name: 'panel',
-                      reactive: true });
+        super._init({
+            name: 'panel',
+            reactive: true,
+        });
 
         this.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
 
@@ -656,13 +466,8 @@ class Panel extends St.Widget {
         this._rightBox = new St.BoxLayout({ name: 'panelRight' });
         this.add_child(this._rightBox);
 
-        this._leftCorner = new PanelCorner(St.Side.LEFT);
-        this.bind_property('style', this._leftCorner, 'style', GObject.BindingFlags.SYNC_CREATE);
-        this.add_child(this._leftCorner);
-
-        this._rightCorner = new PanelCorner(St.Side.RIGHT);
-        this.bind_property('style', this._rightCorner, 'style', GObject.BindingFlags.SYNC_CREATE);
-        this.add_child(this._rightCorner);
+        this.connect('button-press-event', this._onButtonPress.bind(this));
+        this.connect('touch-event', this._onTouchEvent.bind(this));
 
         Main.overview.connect('showing', () => {
             this.add_style_pseudo_class('overview');
@@ -748,62 +553,48 @@ class Panel extends St.Widget {
             childBox.x2 = allocWidth;
         }
         this._rightBox.allocate(childBox);
-
-        let cornerWidth, cornerHeight;
-
-        [, cornerWidth] = this._leftCorner.get_preferred_width(-1);
-        [, cornerHeight] = this._leftCorner.get_preferred_height(-1);
-        childBox.x1 = 0;
-        childBox.x2 = cornerWidth;
-        childBox.y1 = allocHeight;
-        childBox.y2 = allocHeight + cornerHeight;
-        this._leftCorner.allocate(childBox);
-
-        [, cornerWidth] = this._rightCorner.get_preferred_width(-1);
-        [, cornerHeight] = this._rightCorner.get_preferred_height(-1);
-        childBox.x1 = allocWidth - cornerWidth;
-        childBox.x2 = allocWidth;
-        childBox.y1 = allocHeight;
-        childBox.y2 = allocHeight + cornerHeight;
-        this._rightCorner.allocate(childBox);
     }
 
     _tryDragWindow(event) {
         if (Main.modalCount > 0)
             return Clutter.EVENT_PROPAGATE;
 
-        if (event.source != this)
+        const targetActor = global.stage.get_event_actor(event);
+        if (targetActor !== this)
             return Clutter.EVENT_PROPAGATE;
 
-        let { x, y } = event;
+        const [x, y] = event.get_coords();
         let dragWindow = this._getDraggableWindowForPosition(x);
 
         if (!dragWindow)
             return Clutter.EVENT_PROPAGATE;
+
+        const button = event.type() === Clutter.EventType.BUTTON_PRESS
+            ? event.get_button() : -1;
 
         return global.display.begin_grab_op(
             dragWindow,
             Meta.GrabOp.MOVING,
             false, /* pointer grab */
             true, /* frame action */
-            event.button || -1,
-            event.modifier_state,
-            event.time,
+            button,
+            event.get_state(),
+            event.get_time(),
             x, y) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
     }
 
-    vfunc_button_press_event(buttonEvent) {
-        if (buttonEvent.button != 1)
+    _onButtonPress(actor, event) {
+        if (event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
 
-        return this._tryDragWindow(buttonEvent);
+        return this._tryDragWindow(event);
     }
 
-    vfunc_touch_event(touchEvent) {
-        if (touchEvent.type != Clutter.EventType.TOUCH_BEGIN)
+    _onTouchEvent(actor, event) {
+        if (event.type() !== Clutter.EventType.TOUCH_BEGIN)
             return Clutter.EVENT_PROPAGATE;
 
-        return this._tryDragWindow(touchEvent);
+        return this._tryDragWindow(event);
     }
 
     vfunc_key_press_event(keyEvent) {
@@ -880,19 +671,11 @@ class Panel extends St.Widget {
             Main.messageTray.bannerAlignment = Clutter.ActorAlign.CENTER;
 
         if (this._sessionStyle)
-            this._removeStyleClassName(this._sessionStyle);
+            this.remove_style_class_name(this._sessionStyle);
 
         this._sessionStyle = Main.sessionMode.panelStyle;
         if (this._sessionStyle)
-            this._addStyleClassName(this._sessionStyle);
-
-        if (this.get_text_direction() == Clutter.TextDirection.RTL) {
-            this._leftCorner.setStyleParent(this._rightBox);
-            this._rightCorner.setStyleParent(this._leftBox);
-        } else {
-            this._leftCorner.setStyleParent(this._leftBox);
-            this._rightCorner.setStyleParent(this._rightBox);
-        }
+            this.add_style_class_name(this._sessionStyle);
     }
 
     _hideIndicators() {
@@ -954,12 +737,12 @@ class Panel extends St.Widget {
 
     addToStatusArea(role, indicator, position, box) {
         if (this.statusArea[role])
-            throw new Error('Extension point conflict: there is already a status indicator for role %s'.format(role));
+            throw new Error(`Extension point conflict: there is already a status indicator for role ${role}`);
 
         if (!(indicator instanceof PanelMenu.Button))
             throw new TypeError('Status indicator must be an instance of PanelMenu.Button');
 
-        position = position || 0;
+        position ??= 0;
         let boxes = {
             left: this._leftBox,
             center: this._centerBox,
@@ -969,18 +752,6 @@ class Panel extends St.Widget {
         this.statusArea[role] = indicator;
         this._addToPanelBox(role, indicator, position, boxContainer);
         return indicator;
-    }
-
-    _addStyleClassName(className) {
-        this.add_style_class_name(className);
-        this._rightCorner.add_style_class_name(className);
-        this._leftCorner.add_style_class_name(className);
-    }
-
-    _removeStyleClassName(className) {
-        this.remove_style_class_name(className);
-        this._rightCorner.remove_style_class_name(className);
-        this._leftCorner.remove_style_class_name(className);
     }
 
     _onMenuSet(indicator) {

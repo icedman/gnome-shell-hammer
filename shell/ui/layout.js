@@ -18,6 +18,9 @@ var BACKGROUND_FADE_ANIMATION_TIME = 1000;
 var HOT_CORNER_PRESSURE_THRESHOLD = 100; // pixels
 var HOT_CORNER_PRESSURE_TIMEOUT = 1000; // ms
 
+const SCREEN_TRANSITION_DELAY = 250; // ms
+const SCREEN_TRANSITION_DURATION = 500; // ms
+
 function isPopupMetaWindow(actor) {
     switch (actor.meta_window.get_window_type()) {
     case Meta.WindowType.DROPDOWN_MENU:
@@ -226,9 +229,11 @@ var LayoutManager = GObject.registerClass({
         global.stage.remove_actor(global.top_window_group);
         this.uiGroup.add_actor(global.top_window_group);
 
-        this.overviewGroup = new St.Widget({ name: 'overviewGroup',
-                                             visible: false,
-                                             reactive: true });
+        this.overviewGroup = new St.Widget({
+            name: 'overviewGroup',
+            visible: false,
+            reactive: true,
+        });
         this.addChrome(this.overviewGroup);
 
         this.screenShieldGroup = new St.Widget({
@@ -239,22 +244,36 @@ var LayoutManager = GObject.registerClass({
         });
         this.addChrome(this.screenShieldGroup);
 
-        this.panelBox = new St.BoxLayout({ name: 'panelBox',
-                                           vertical: true });
-        this.addChrome(this.panelBox, { affectsStruts: true,
-                                        trackFullscreen: true });
+        this.panelBox = new St.BoxLayout({
+            name: 'panelBox',
+            vertical: true,
+        });
+        this.addChrome(this.panelBox, {
+            affectsStruts: true,
+            trackFullscreen: true,
+        });
         this.panelBox.connect('notify::allocation',
                               this._panelBoxChanged.bind(this));
 
-        this.modalDialogGroup = new St.Widget({ name: 'modalDialogGroup',
-                                                layout_manager: new Clutter.BinLayout() });
+        this.modalDialogGroup = new St.Widget({
+            name: 'modalDialogGroup',
+            layout_manager: new Clutter.BinLayout(),
+        });
         this.uiGroup.add_actor(this.modalDialogGroup);
 
-        this.keyboardBox = new St.BoxLayout({ name: 'keyboardBox',
-                                              reactive: true,
-                                              track_hover: true });
+        this.keyboardBox = new St.BoxLayout({
+            name: 'keyboardBox',
+            reactive: true,
+            track_hover: true,
+        });
         this.addTopChrome(this.keyboardBox);
         this._keyboardHeightNotifyId = 0;
+
+        this.screenshotUIGroup = new St.Widget({
+            name: 'screenshotUIGroup',
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this.addTopChrome(this.screenshotUIGroup);
 
         // A dummy actor that tracks the mouse or text cursor, based on the
         // position and size set in setDummyCursorGeometry.
@@ -292,6 +311,13 @@ var LayoutManager = GObject.registerClass({
         monitorManager.connect('monitors-changed',
                                this._monitorsChanged.bind(this));
         this._monitorsChanged();
+
+        this.screenTransition = new ScreenTransition();
+        this.uiGroup.add_child(this.screenTransition);
+        this.screenTransition.add_constraint(new Clutter.BindConstraint({
+            source: this.uiGroup,
+            coordinate: Clutter.BindCoordinate.ALL,
+        }));
     }
 
     // This is called by Main after everything else is constructed
@@ -303,6 +329,7 @@ var LayoutManager = GObject.registerClass({
 
     showOverview() {
         this.overviewGroup.show();
+        this.screenTransition.hide();
 
         this._inOverview = true;
         this._updateVisibility();
@@ -310,6 +337,7 @@ var LayoutManager = GObject.registerClass({
 
     hideOverview() {
         this.overviewGroup.hide();
+        this.screenTransition.hide();
 
         this._inOverview = false;
         this._updateVisibility();
@@ -430,9 +458,11 @@ var LayoutManager = GObject.registerClass({
     }
 
     _createBackgroundManager(monitorIndex) {
-        let bgManager = new Background.BackgroundManager({ container: this._backgroundGroup,
-                                                           layoutManager: this,
-                                                           monitorIndex });
+        const bgManager = new Background.BackgroundManager({
+            container: this._backgroundGroup,
+            layoutManager: this,
+            monitorIndex,
+        });
 
         bgManager.connect('changed', this._addBackgroundMenu.bind(this));
         this._addBackgroundMenu(bgManager);
@@ -525,10 +555,12 @@ var LayoutManager = GObject.registerClass({
         if (this.panelBox.height) {
             let primary = this.primaryMonitor;
 
-            this._rightPanelBarrier = new Meta.Barrier({ display: global.display,
-                                                         x1: primary.x + primary.width, y1: primary.y,
-                                                         x2: primary.x + primary.width, y2: primary.y + this.panelBox.height,
-                                                         directions: Meta.BarrierDirection.NEGATIVE_X });
+            this._rightPanelBarrier = new Meta.Barrier({
+                display: global.display,
+                x1: primary.x + primary.width, y1: primary.y,
+                x2: primary.x + primary.width, y2: primary.y + this.panelBox.height,
+                directions: Meta.BarrierDirection.NEGATIVE_X,
+            });
         }
     }
 
@@ -602,8 +634,10 @@ var LayoutManager = GObject.registerClass({
 
         global.stage.insert_child_below(this._systemBackground, null);
 
-        let constraint = new Clutter.BindConstraint({ source: global.stage,
-                                                      coordinate: Clutter.BindCoordinate.ALL });
+        const constraint = new Clutter.BindConstraint({
+            source: global.stage,
+            coordinate: Clutter.BindCoordinate.ALL,
+        });
         this._systemBackground.add_constraint(constraint);
 
         let signalId = this._systemBackground.connect('loaded', () => {
@@ -643,10 +677,12 @@ var LayoutManager = GObject.registerClass({
     async _prepareStartupAnimation() {
         // During the initial transition, add a simple actor to block all events,
         // so they don't get delivered to X11 windows that have been transformed.
-        this._coverPane = new Clutter.Actor({ opacity: 0,
-                                              width: global.screen_width,
-                                              height: global.screen_height,
-                                              reactive: true });
+        this._coverPane = new Clutter.Actor({
+            opacity: 0,
+            width: global.screen_width,
+            height: global.screen_height,
+            reactive: true,
+        });
         this.addChrome(this._coverPane);
 
         if (Meta.is_restart()) {
@@ -855,12 +891,10 @@ var LayoutManager = GObject.registerClass({
 
         let actorData = Params.parse(params, defaultParams);
         actorData.actor = actor;
-        actorData.visibleId = actor.connect('notify::visible',
-                                            this._queueUpdateRegions.bind(this));
-        actorData.allocationId = actor.connect('notify::allocation',
-                                               this._queueUpdateRegions.bind(this));
-        actorData.destroyId = actor.connect('destroy',
-                                            this._untrackActor.bind(this));
+        actor.connectObject(
+            'notify::visible', this._queueUpdateRegions.bind(this),
+            'notify::allocation', this._queueUpdateRegions.bind(this),
+            'destroy', this._untrackActor.bind(this), this);
         // Note that destroying actor will unset its parent, so we don't
         // need to connect to 'destroy' too.
 
@@ -874,12 +908,9 @@ var LayoutManager = GObject.registerClass({
 
         if (i == -1)
             return;
-        let actorData = this._trackedActors[i];
 
         this._trackedActors.splice(i, 1);
-        actor.disconnect(actorData.visibleId);
-        actor.disconnect(actorData.allocationId);
-        actor.disconnect(actorData.destroyId);
+        actor.disconnectObject(this);
 
         this._queueUpdateRegions();
     }
@@ -932,13 +963,6 @@ var LayoutManager = GObject.registerClass({
             this._updateRegionIdle = Meta.later_add(Meta.LaterType.BEFORE_REDRAW,
                                                     this._updateRegions.bind(this));
         }
-    }
-
-    _getWindowActorsForWorkspace(workspace) {
-        return global.get_window_actors().filter(actor => {
-            let win = actor.meta_window;
-            return win.located_on_workspace(workspace);
-        });
     }
 
     _updateFullscreen() {
@@ -1119,19 +1143,27 @@ class HotCorner extends Clutter.Actor {
 
         if (size > 0) {
             if (Clutter.get_default_text_direction() == Clutter.TextDirection.RTL) {
-                this._verticalBarrier = new Meta.Barrier({ display: global.display,
-                                                           x1: this._x, x2: this._x, y1: this._y, y2: this._y + size,
-                                                           directions: Meta.BarrierDirection.NEGATIVE_X });
-                this._horizontalBarrier = new Meta.Barrier({ display: global.display,
-                                                             x1: this._x - size, x2: this._x, y1: this._y, y2: this._y,
-                                                             directions: Meta.BarrierDirection.POSITIVE_Y });
+                this._verticalBarrier = new Meta.Barrier({
+                    display: global.display,
+                    x1: this._x, x2: this._x, y1: this._y, y2: this._y + size,
+                    directions: Meta.BarrierDirection.NEGATIVE_X,
+                });
+                this._horizontalBarrier = new Meta.Barrier({
+                    display: global.display,
+                    x1: this._x - size, x2: this._x, y1: this._y, y2: this._y,
+                    directions: Meta.BarrierDirection.POSITIVE_Y,
+                });
             } else {
-                this._verticalBarrier = new Meta.Barrier({ display: global.display,
-                                                           x1: this._x, x2: this._x, y1: this._y, y2: this._y + size,
-                                                           directions: Meta.BarrierDirection.POSITIVE_X });
-                this._horizontalBarrier = new Meta.Barrier({ display: global.display,
-                                                             x1: this._x, x2: this._x + size, y1: this._y, y2: this._y,
-                                                             directions: Meta.BarrierDirection.POSITIVE_Y });
+                this._verticalBarrier = new Meta.Barrier({
+                    display: global.display,
+                    x1: this._x, x2: this._x, y1: this._y, y2: this._y + size,
+                    directions: Meta.BarrierDirection.POSITIVE_X,
+                });
+                this._horizontalBarrier = new Meta.Barrier({
+                    display: global.display,
+                    x1: this._x, x2: this._x + size, y1: this._y, y2: this._y,
+                    directions: Meta.BarrierDirection.POSITIVE_Y,
+                });
             }
 
             this._pressureBarrier.addBarrier(this._verticalBarrier);
@@ -1150,11 +1182,13 @@ class HotCorner extends Clutter.Actor {
                 reactive: true,
             });
 
-            this._corner = new Clutter.Actor({ name: 'hot-corner',
-                                               width: 1,
-                                               height: 1,
-                                               opacity: 0,
-                                               reactive: true });
+            this._corner = new Clutter.Actor({
+                name: 'hot-corner',
+                width: 1,
+                height: 1,
+                opacity: 0,
+                reactive: true,
+            });
             this._corner._delegate = this;
 
             this.add_child(this._corner);
@@ -1367,3 +1401,42 @@ var PressureBarrier = class PressureBarrier {
     }
 };
 Signals.addSignalMethods(PressureBarrier.prototype);
+
+var ScreenTransition = GObject.registerClass(
+class ScreenTransition extends Clutter.Actor {
+    _init() {
+        super._init({ visible: false });
+    }
+
+    vfunc_hide() {
+        this.content = null;
+        super.vfunc_hide();
+    }
+
+    run() {
+        if (this.visible)
+            return;
+
+        Main.uiGroup.set_child_above_sibling(this, null);
+
+        const rect = new imports.gi.cairo.RectangleInt({
+            x: 0,
+            y: 0,
+            width: global.screen_width,
+            height: global.screen_height,
+        });
+        const [, , , scale] = global.stage.get_capture_final_size(rect);
+        this.content = global.stage.paint_to_content(rect, scale, Clutter.PaintFlag.NO_CURSORS);
+
+        this.opacity = 255;
+        this.show();
+
+        this.ease({
+            opacity: 0,
+            duration: SCREEN_TRANSITION_DURATION,
+            delay: SCREEN_TRANSITION_DELAY,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => this.hide(),
+        });
+    }
+});

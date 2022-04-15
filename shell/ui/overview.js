@@ -159,10 +159,16 @@ var Overview = class {
         // During transitions, we raise this to the top to avoid having the overview
         // area be reactive; it causes too many issues such as double clicks on
         // Dash elements, or mouseover handlers in the workspaces.
-        this._coverPane = new Clutter.Actor({ opacity: 0,
-                                              reactive: true });
+        this._coverPane = new Clutter.Actor({
+            opacity: 0,
+            reactive: true,
+        });
         Main.layoutManager.overviewGroup.add_child(this._coverPane);
-        this._coverPane.connect('event', () => Clutter.EVENT_STOP);
+        this._coverPane.connect('event', (_actor, event) => {
+            return event.type() === Clutter.EventType.ENTER ||
+                event.type() === Clutter.EventType.LEAVE
+                ? Clutter.EVENT_PROPAGATE : Clutter.EVENT_STOP;
+        });
         this._coverPane.hide();
 
         // XDND
@@ -254,7 +260,7 @@ var Overview = class {
         this._lastActiveWorkspaceIndex = workspaceManager.get_active_workspace_index();
     }
 
-    _onDragEnd(time) {
+    _onDragEnd() {
         this._inXdndDrag = false;
 
         // In case the drag was canceled while in the overview
@@ -262,7 +268,8 @@ var Overview = class {
         // the overview
         if (this._shown) {
             let workspaceManager = global.workspace_manager;
-            workspaceManager.get_workspace_by_index(this._lastActiveWorkspaceIndex).activate(time);
+            workspaceManager.get_workspace_by_index(this._lastActiveWorkspaceIndex)
+                .activate(global.get_current_time());
             this.hide();
         }
         this._resetWindowSwitchTimeout();
@@ -325,8 +332,11 @@ var Overview = class {
             return null;
 
         let window = windows[0];
-        let clone = new Clutter.Clone({ source: window,
-                                        x: window.x, y: window.y });
+        const clone = new Clutter.Clone({
+            source: window,
+            x: window.x,
+            y: window.y,
+        });
         clone.source.connect('destroy', () => {
             clone.destroy();
         });
@@ -386,7 +396,7 @@ var Overview = class {
             this._shown = false;
             this._visibleTarget = false;
             this.emit('hiding');
-            Main.panel.style = 'transition-duration: %dms;'.format(duration);
+            Main.panel.style = `transition-duration: ${duration}ms;`;
             onComplete = () => this._hideDone();
         } else {
             onComplete = () => this._showDone();
@@ -488,9 +498,12 @@ var Overview = class {
             let shouldBeModal = !this._inXdndDrag;
             if (shouldBeModal && !this._modal) {
                 let actionMode = Shell.ActionMode.OVERVIEW;
-                if (Main.pushModal(this._overview, { actionMode })) {
+                let grab = Main.pushModal(global.stage, { actionMode });
+                if (grab.get_seat_state() !== Clutter.GrabState.NONE) {
+                    this._grab = grab;
                     this._modal = true;
                 } else {
+                    Main.popModal(grab);
                     this.hide();
                     return false;
                 }
@@ -498,7 +511,8 @@ var Overview = class {
         } else {
             // eslint-disable-next-line no-lonely-if
             if (this._modal) {
-                Main.popModal(this._overview);
+                Main.popModal(this._grab);
+                this._grab = false;
                 this._modal = false;
             }
         }

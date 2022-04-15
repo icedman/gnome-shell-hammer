@@ -31,17 +31,22 @@ var ModalDialog = GObject.registerClass({
     Signals: { 'opened': {}, 'closed': {} },
 }, class ModalDialog extends St.Widget {
     _init(params) {
-        super._init({ visible: false,
-                      x: 0,
-                      y: 0,
-                      accessible_role: Atk.Role.DIALOG });
+        super._init({
+            visible: false,
+            reactive: true,
+            x: 0,
+            y: 0,
+            accessible_role: Atk.Role.DIALOG,
+        });
 
-        params = Params.parse(params, { shellReactive: false,
-                                        styleClass: null,
-                                        actionMode: Shell.ActionMode.SYSTEM_MODAL,
-                                        shouldFadeIn: true,
-                                        shouldFadeOut: true,
-                                        destroyOnClose: true });
+        params = Params.parse(params, {
+            shellReactive: false,
+            styleClass: null,
+            actionMode: Shell.ActionMode.SYSTEM_MODAL,
+            shouldFadeIn: true,
+            shouldFadeOut: true,
+            destroyOnClose: true,
+        });
 
         this._state = State.CLOSED;
         this._hasModal = false;
@@ -53,8 +58,10 @@ var ModalDialog = GObject.registerClass({
 
         Main.layoutManager.modalDialogGroup.add_actor(this);
 
-        let constraint = new Clutter.BindConstraint({ source: global.stage,
-                                                      coordinate: Clutter.BindCoordinate.ALL });
+        const constraint = new Clutter.BindConstraint({
+            source: global.stage,
+            coordinate: Clutter.BindCoordinate.ALL,
+        });
         this.add_constraint(constraint);
 
         this.backgroundStack = new St.Widget({
@@ -72,9 +79,10 @@ var ModalDialog = GObject.registerClass({
         this.buttonLayout = this.dialogLayout.buttonLayout;
 
         if (!this._shellReactive) {
-            this._lightbox = new Lightbox.Lightbox(this,
-                                                   { inhibitEvents: true,
-                                                     radialEffect: true });
+            this._lightbox = new Lightbox.Lightbox(this, {
+                inhibitEvents: true,
+                radialEffect: true,
+            });
             this._lightbox.highlight(this._backgroundBin);
 
             this._eventBlocker = new Clutter.Actor({ reactive: true });
@@ -97,6 +105,13 @@ var ModalDialog = GObject.registerClass({
 
         this._state = state;
         this.notify('state');
+    }
+
+    vfunc_key_press_event() {
+        if (global.focus_manager.navigate_from_event(Clutter.get_current_event()))
+            return Clutter.EVENT_STOP;
+
+        return Clutter.EVENT_PROPAGATE;
     }
 
     clearButtons() {
@@ -139,15 +154,12 @@ var ModalDialog = GObject.registerClass({
     }
 
     setInitialKeyFocus(actor) {
-        if (this._initialKeyFocusDestroyId)
-            this._initialKeyFocus.disconnect(this._initialKeyFocusDestroyId);
+        this._initialKeyFocus?.disconnectObject(this);
 
         this._initialKeyFocus = actor;
 
-        this._initialKeyFocusDestroyId = actor.connect('destroy', () => {
-            this._initialKeyFocus = null;
-            this._initialKeyFocusDestroyId = 0;
-        });
+        actor.connectObject('destroy',
+            () => (this._initialKeyFocus = null), this);
     }
 
     open(timestamp, onPrimary) {
@@ -202,7 +214,8 @@ var ModalDialog = GObject.registerClass({
             this._savedKeyFocus = focus;
         else
             this._savedKeyFocus = null;
-        Main.popModal(this, timestamp);
+        Main.popModal(this._grab, timestamp);
+        this._grab = null;
         this._hasModal = false;
 
         if (!this._shellReactive)
@@ -216,9 +229,13 @@ var ModalDialog = GObject.registerClass({
         let params = { actionMode: this._actionMode };
         if (timestamp)
             params['timestamp'] = timestamp;
-        if (!Main.pushModal(this, params))
+        let grab = Main.pushModal(this, params);
+        if (grab.get_seat_state() === Clutter.GrabState.NONE) {
+            Main.popModal(grab);
             return false;
+        }
 
+        this._grab = grab;
         Main.layoutManager.emit('system-modal-opened');
 
         this._hasModal = true;

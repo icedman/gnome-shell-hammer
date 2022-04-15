@@ -41,7 +41,7 @@ var StreamSlider = class {
         this._slider = new Slider.Slider(0);
 
         this._soundSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.sound' });
-        this._soundSettings.connect('changed::%s'.format(ALLOW_AMPLIFIED_VOLUME_KEY), this._amplifySettingsChanged.bind(this));
+        this._soundSettings.connect(`changed::${ALLOW_AMPLIFIED_VOLUME_KEY}`, this._amplifySettingsChanged.bind(this));
         this._amplifySettingsChanged();
 
         this._sliderChangedId = this._slider.connect('notify::value',
@@ -91,15 +91,13 @@ var StreamSlider = class {
     }
 
     _disconnectStream(stream) {
-        stream.disconnect(this._mutedChangedId);
-        this._mutedChangedId = 0;
-        stream.disconnect(this._volumeChangedId);
-        this._volumeChangedId = 0;
+        stream.disconnectObject(this);
     }
 
     _connectStream(stream) {
-        this._mutedChangedId = stream.connect('notify::is-muted', this._updateVolume.bind(this));
-        this._volumeChangedId = stream.connect('notify::volume', this._updateVolume.bind(this));
+        stream.connectObject(
+            'notify::is-muted', this._updateVolume.bind(this),
+            'notify::volume', this._updateVolume.bind(this), this);
     }
 
     _shouldBeVisible() {
@@ -231,7 +229,8 @@ var OutputStreamSlider = class extends StreamSlider {
 
     _connectStream(stream) {
         super._connectStream(stream);
-        this._portChangedId = stream.connect('notify::port', this._portChanged.bind(this));
+        stream.connectObject('notify::port',
+            this._portChanged.bind(this), this);
         this._portChanged();
     }
 
@@ -248,12 +247,6 @@ var OutputStreamSlider = class extends StreamSlider {
             return sink.get_port().port.includes('headphone');
 
         return false;
-    }
-
-    _disconnectStream(stream) {
-        super._disconnectStream(stream);
-        stream.disconnect(this._portChangedId);
-        this._portChangedId = 0;
     }
 
     _updateSliderIcon() {

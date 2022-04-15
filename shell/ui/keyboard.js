@@ -25,29 +25,51 @@ const SHOW_KEYBOARD = 'screen-keyboard-enabled';
 const KEY_SIZE = 2;
 
 const defaultKeysPre = [
-    [[], [], [{ width: 1.5, level: 1, extraClassName: 'shift-key-lowercase', icon: 'keyboard-shift-filled-symbolic' }], [{ label: '?123', width: 1.5, level: 2 }]],
-    [[], [], [{ width: 1.5, level: 0, extraClassName: 'shift-key-uppercase', icon: 'keyboard-shift-filled-symbolic' }], [{ label: '?123', width: 1.5, level: 2 }]],
-    [[], [], [{ label: '=/<', width: 1.5, level: 3 }], [{ label: 'ABC', width: 1.5, level: 0 }]],
-    [[], [], [{ label: '?123', width: 1.5, level: 2 }], [{ label: 'ABC', width: 1.5, level: 0 }]],
+    [
+        [],
+        [],
+        [{ width: 1.5, level: 1, extraClassName: 'shift-key-lowercase', icon: 'keyboard-shift-symbolic' }],
+        [{ label: '?123', width: 1.5, level: 2 }],
+    ], [
+        [],
+        [],
+        [{ width: 1.5, level: 0, extraClassName: 'shift-key-uppercase', icon: 'keyboard-shift-symbolic' }],
+        [{ label: '?123', width: 1.5, level: 2 }],
+    ], [
+        [],
+        [],
+        [{ label: '=/<', width: 1.5, level: 3 }],
+        [{ label: 'ABC', width: 1.5, level: 0 }],
+    ], [
+        [],
+        [],
+        [{ label: '?123', width: 1.5, level: 2 }],
+        [{ label: 'ABC', width: 1.5, level: 0 }],
+    ],
 ];
 
 const defaultKeysPost = [
-    [[{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
-     [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
-     [{ width: 3, level: 1, right: true, extraClassName: 'shift-key-lowercase', icon: 'keyboard-shift-filled-symbolic' }],
-     [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-filled-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }]],
-    [[{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
-     [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
-     [{ width: 3, level: 0, right: true, extraClassName: 'shift-key-uppercase', icon: 'keyboard-shift-filled-symbolic' }],
-     [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-filled-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }]],
-    [[{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
-     [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
-     [{ label: '=/<', width: 3, level: 3, right: true }],
-     [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-filled-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }]],
-    [[{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
-     [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
-     [{ label: '?123', width: 3, level: 2, right: true }],
-     [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-filled-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }]],
+    [
+        [{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
+        [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
+        [{ width: 3, level: 1, right: true, extraClassName: 'shift-key-lowercase', icon: 'keyboard-shift-symbolic' }],
+        [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }],
+    ], [
+        [{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
+        [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
+        [{ width: 3, level: 0, right: true, extraClassName: 'shift-key-uppercase', icon: 'keyboard-shift-symbolic' }],
+        [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }],
+    ], [
+        [{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
+        [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
+        [{ label: '=/<', width: 3, level: 3, right: true }],
+        [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }],
+    ], [
+        [{ width: 1.5, keyval: Clutter.KEY_BackSpace, icon: 'edit-clear-symbolic' }],
+        [{ width: 2, keyval: Clutter.KEY_Return, extraClassName: 'enter-key', icon: 'keyboard-enter-symbolic' }],
+        [{ label: '?123', width: 3, level: 2, right: true }],
+        [{ action: 'emoji', icon: 'face-smile-symbolic' }, { action: 'languageMenu', extraClassName: 'layout-key', icon: 'keyboard-layout-symbolic' }, { action: 'hide', extraClassName: 'hide-key', icon: 'go-down-symbolic' }],
+    ],
 ];
 
 var AspectContainer = GObject.registerClass(
@@ -105,9 +127,11 @@ class AspectContainer extends St.Widget {
 var KeyContainer = GObject.registerClass(
 class KeyContainer extends St.Widget {
     _init() {
-        let gridLayout = new Clutter.GridLayout({ orientation: Clutter.Orientation.HORIZONTAL,
-                                                  column_homogeneous: true,
-                                                  row_homogeneous: true });
+        const gridLayout = new Clutter.GridLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
         super._init({
             layout_manager: gridLayout,
             x_expand: true,
@@ -226,17 +250,17 @@ var LanguageSelectionPopup = class extends PopupMenu.PopupMenu {
         item = this.addSettingsAction(_("Region & Language Settings"), 'gnome-region-panel.desktop');
         item.can_focus = false;
 
-        this._capturedEventId = 0;
-
-        this._unmapId = actor.connect('notify::mapped', () => {
+        actor.connectObject('notify::mapped', () => {
             if (!actor.is_mapped())
                 this.close(true);
-        });
+        }, this);
     }
 
     _onCapturedEvent(actor, event) {
-        if (event.get_source() == this.actor ||
-            this.actor.contains(event.get_source()))
+        const targetActor = global.stage.get_event_actor(event);
+
+        if (targetActor === this.actor ||
+            this.actor.contains(targetActor))
             return Clutter.EVENT_PROPAGATE;
 
         if (event.type() == Clutter.EventType.BUTTON_RELEASE || event.type() == Clutter.EventType.TOUCH_END)
@@ -247,23 +271,18 @@ var LanguageSelectionPopup = class extends PopupMenu.PopupMenu {
 
     open(animate) {
         super.open(animate);
-        this._capturedEventId = global.stage.connect('captured-event',
-                                                     this._onCapturedEvent.bind(this));
+        global.stage.connectObject(
+            'captured-event', this._onCapturedEvent.bind(this), this);
     }
 
     close(animate) {
         super.close(animate);
-        if (this._capturedEventId != 0) {
-            global.stage.disconnect(this._capturedEventId);
-            this._capturedEventId = 0;
-        }
+        global.stage.disconnectObject(this);
     }
 
     destroy() {
-        if (this._capturedEventId != 0)
-            global.stage.disconnect(this._capturedEventId);
-        if (this._unmapId != 0)
-            this.sourceActor.disconnect(this._unmapId);
+        global.stage.disconnectObject(this);
+        this.sourceActor.disconnectObject(this);
         super.destroy();
     }
 };
@@ -292,9 +311,6 @@ var Key = GObject.registerClass({
         this._extendedKeyboard = null;
         this._pressTimeoutId = 0;
         this._capturedPress = false;
-
-        this._capturedEventId = 0;
-        this._unmapId = 0;
     }
 
     _onDestroy() {
@@ -383,9 +399,10 @@ var Key = GObject.registerClass({
         let type = event.type();
         let press = type == Clutter.EventType.BUTTON_PRESS || type == Clutter.EventType.TOUCH_BEGIN;
         let release = type == Clutter.EventType.BUTTON_RELEASE || type == Clutter.EventType.TOUCH_END;
+        const targetActor = global.stage.get_event_actor(event);
 
-        if (event.get_source() == this._boxPointer.bin ||
-            this._boxPointer.bin.contains(event.get_source()))
+        if (targetActor === this._boxPointer.bin ||
+            this._boxPointer.bin.contains(targetActor))
             return Clutter.EVENT_PROPAGATE;
 
         if (press)
@@ -398,25 +415,19 @@ var Key = GObject.registerClass({
 
     _showSubkeys() {
         this._boxPointer.open(BoxPointer.PopupAnimation.FULL);
-        this._capturedEventId = global.stage.connect('captured-event',
-                                                     this._onCapturedEvent.bind(this));
-        this._unmapId = this.keyButton.connect('notify::mapped', () => {
+        global.stage.connectObject(
+            'captured-event', this._onCapturedEvent.bind(this), this);
+        this.keyButton.connectObject('notify::mapped', () => {
             if (!this.keyButton.is_mapped())
                 this._hideSubkeys();
-        });
+        }, this);
     }
 
     _hideSubkeys() {
         if (this._boxPointer)
             this._boxPointer.close(BoxPointer.PopupAnimation.FULL);
-        if (this._capturedEventId) {
-            global.stage.disconnect(this._capturedEventId);
-            this._capturedEventId = 0;
-        }
-        if (this._unmapId) {
-            this.keyButton.disconnect(this._unmapId);
-            this._unmapId = 0;
-        }
+        global.stage.disconnectObject(this);
+        this.keyButton.disconnectObject(this);
         this._capturedPress = false;
     }
 
@@ -438,11 +449,13 @@ var Key = GObject.registerClass({
         button.keyWidth = 1;
         button.connect('button-press-event', () => {
             this._press(key);
-            return Clutter.EVENT_PROPAGATE;
+            button.add_style_pseudo_class('active');
+            return Clutter.EVENT_STOP;
         });
         button.connect('button-release-event', () => {
             this._release(key);
-            return Clutter.EVENT_PROPAGATE;
+            button.remove_style_pseudo_class('active');
+            return Clutter.EVENT_STOP;
         });
         button.connect('touch-event', (actor, event) => {
             // We only handle touch events here on wayland. On X11
@@ -461,15 +474,18 @@ var Key = GObject.registerClass({
                 event.type() == Clutter.EventType.TOUCH_BEGIN) {
                 this._touchPressSlot = slot;
                 this._press(key);
+                button.add_style_pseudo_class('active');
             } else if (event.type() === Clutter.EventType.TOUCH_END) {
                 if (!this._touchPressSlot ||
-                    this._touchPressSlot === slot)
+                    this._touchPressSlot === slot) {
                     this._release(key);
+                    button.remove_style_pseudo_class('active');
+                }
 
                 if (this._touchPressSlot === slot)
                     this._touchPressSlot = null;
             }
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_STOP;
         });
 
         return button;
@@ -508,10 +524,10 @@ var Key = GObject.registerClass({
 
         if (latched) {
             this.keyButton.add_style_pseudo_class('latched');
-            this._icon.icon_name = 'keyboard-caps-lock-filled-symbolic';
+            this._icon.icon_name = 'keyboard-caps-lock-symbolic';
         } else {
             this.keyButton.remove_style_pseudo_class('latched');
-            this._icon.icon_name = 'keyboard-shift-filled-symbolic';
+            this._icon.icon_name = 'keyboard-shift-symbolic';
         }
     }
 });
@@ -533,7 +549,8 @@ var KeyboardModel = class {
     }
 
     _loadModel(groupName) {
-        let file = Gio.File.new_for_uri('resource:///org/gnome/shell/osk-layouts/%s.json'.format(groupName));
+        const file = Gio.File.new_for_uri(
+            `resource:///org/gnome/shell/osk-layouts/${groupName}.json`);
         let [success_, contents] = file.load_contents(null);
 
         const decoder = new TextDecoder();
@@ -553,28 +570,26 @@ var FocusTracker = class {
     constructor() {
         this._rect = null;
 
-        this._notifyFocusId = global.display.connect('notify::focus-window', () => {
-            this._setCurrentWindow(global.display.focus_window);
-            this.emit('window-changed', this._currentWindow);
-        });
+        global.display.connectObject(
+            'notify::focus-window', () => {
+                this._setCurrentWindow(global.display.focus_window);
+                this.emit('window-changed', this._currentWindow);
+            },
+            'grab-op-begin', (display, window, op) => {
+                if (window === this._currentWindow &&
+                    (op === Meta.GrabOp.MOVING || op === Meta.GrabOp.KEYBOARD_MOVING))
+                    this.emit('window-grabbed');
+            }, this);
 
         this._setCurrentWindow(global.display.focus_window);
 
-        this._grabOpBeginId = global.display.connect('grab-op-begin', (display, window, op) => {
-            if (window == this._currentWindow &&
-                (op == Meta.GrabOp.MOVING || op == Meta.GrabOp.KEYBOARD_MOVING))
-                this.emit('window-grabbed');
-        });
-
         /* Valid for wayland clients */
-        this._cursorLocationChangedId =
-            Main.inputMethod.connect('cursor-location-changed', (o, rect) => {
-                this._setCurrentRect(rect);
-            });
+        Main.inputMethod.connectObject('cursor-location-changed',
+            (o, rect) => this._setCurrentRect(rect), this);
 
         this._ibusManager = IBusManager.getIBusManager();
-        this._setCursorLocationId =
-            this._ibusManager.connect('set-cursor-location', (manager, rect) => {
+        this._ibusManager.connectObject(
+            'set-cursor-location', (manager, rect) => {
                 /* Valid for X11 clients only */
                 if (Main.inputMethod.currentFocus)
                     return;
@@ -583,27 +598,17 @@ var FocusTracker = class {
                 grapheneRect.init(rect.x, rect.y, rect.width, rect.height);
 
                 this._setCurrentRect(grapheneRect);
-            });
-        this._focusInId = this._ibusManager.connect('focus-in', () => {
-            this.emit('focus-changed', true);
-        });
-        this._focusOutId = this._ibusManager.connect('focus-out', () => {
-            this.emit('focus-changed', false);
-        });
+            },
+            'focus-in', () => this.emit('focus-changed', true),
+            'focus-out', () => this.emit('focus-changed', false),
+            this);
     }
 
     destroy() {
-        if (this._currentWindow) {
-            this._currentWindow.disconnect(this._currentWindowPositionChangedId);
-            delete this._currentWindowPositionChangedId;
-        }
-
-        global.display.disconnect(this._notifyFocusId);
-        global.display.disconnect(this._grabOpBeginId);
-        Main.inputMethod.disconnect(this._cursorLocationChangedId);
-        this._ibusManager.disconnect(this._setCursorLocationId);
-        this._ibusManager.disconnect(this._focusInId);
-        this._ibusManager.disconnect(this._focusOutId);
+        this._currentWindow?.disconnectObject(this);
+        global.display.disconnectObject(this);
+        Main.inputMethod.disconnectObject(this);
+        this._ibusManager.disconnectObject(this);
     }
 
     get currentWindow() {
@@ -611,17 +616,13 @@ var FocusTracker = class {
     }
 
     _setCurrentWindow(window) {
-        if (this._currentWindow) {
-            this._currentWindow.disconnect(this._currentWindowPositionChangedId);
-            delete this._currentWindowPositionChangedId;
-        }
+        this._currentWindow?.disconnectObject(this);
 
         this._currentWindow = window;
 
         if (this._currentWindow) {
-            this._currentWindowPositionChangedId =
-                this._currentWindow.connect('position-changed', () =>
-                    this.emit('window-moved'));
+            this._currentWindow.connectObject(
+                'position-changed', () => this.emit('window-moved'), this);
         }
     }
 
@@ -857,13 +858,17 @@ var EmojiPager = GObject.registerClass({
     }
 
     _generatePanel(nPage) {
-        let gridLayout = new Clutter.GridLayout({ orientation: Clutter.Orientation.HORIZONTAL,
-                                                  column_homogeneous: true,
-                                                  row_homogeneous: true });
-        let panel = new St.Widget({ layout_manager: gridLayout,
-                                    style_class: 'emoji-page',
-                                    x_expand: true,
-                                    y_expand: true });
+        const gridLayout = new Clutter.GridLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
+        const panel = new St.Widget({
+            layout_manager: gridLayout,
+            style_class: 'emoji-page',
+            x_expand: true,
+            y_expand: true,
+        });
 
         /* Set an expander actor so all proportions are right despite the panel
          * not having all rows/cols filled in.
@@ -1096,8 +1101,11 @@ var EmojiSelection = GObject.registerClass({
         row.appendKey(key);
         row.layoutButtons();
 
-        let actor = new AspectContainer({ layout_manager: new Clutter.BinLayout(),
-                                          x_expand: true, y_expand: true });
+        const actor = new AspectContainer({
+            layout_manager: new Clutter.BinLayout(),
+            x_expand: true,
+            y_expand: true,
+        });
         actor.add_child(row);
         /* Regular keyboard layouts are 11.5×4 grids, optimize for that
          * at the moment. Ideally this should be as wide as the current
@@ -1136,9 +1144,11 @@ var Keypad = GObject.registerClass({
             y_expand: true,
         });
 
-        let gridLayout = new Clutter.GridLayout({ orientation: Clutter.Orientation.HORIZONTAL,
-                                                  column_homogeneous: true,
-                                                  row_homogeneous: true });
+        const gridLayout = new Clutter.GridLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
         this._box = new St.Widget({ layout_manager: gridLayout, x_expand: true, y_expand: true });
         this.add_child(this._box);
 
@@ -1258,13 +1268,19 @@ var KeyboardManager = class KeyBoardManager {
             this._keyboard.resetSuggestions();
     }
 
-    shouldTakeEvent(event) {
+    maybeHandleEvent(event) {
         if (!this._keyboard)
             return false;
 
-        let actor = event.get_source();
-        return Main.layoutManager.keyboardBox.contains(actor) ||
-               !!actor._extendedKeys || !!actor.extendedKey;
+        const actor = global.stage.get_event_actor(event);
+
+        if (Main.layoutManager.keyboardBox.contains(actor) ||
+            !!actor._extendedKeys || !!actor.extendedKey) {
+            actor.event(event);
+            return true;
+        }
+
+        return false;
     }
 };
 
@@ -1288,22 +1304,21 @@ var Keyboard = GObject.registerClass({
         this._emojiKeyVisible = Meta.is_wayland_compositor();
 
         this._focusTracker = new FocusTracker();
-        this._connectSignal(this._focusTracker, 'position-changed',
-            this._onFocusPositionChanged.bind(this));
-        this._connectSignal(this._focusTracker, 'window-grabbed',
-            this._onFocusWindowMoving.bind(this));
+        this._focusTracker.connectObject(
+            'position-changed', this._onFocusPositionChanged.bind(this),
+            'window-grabbed', this._onFocusWindowMoving.bind(this), this);
 
         this._windowMovedId = this._focusTracker.connect('window-moved',
             this._onFocusWindowMoving.bind(this));
 
         // Valid only for X11
         if (!Meta.is_wayland_compositor()) {
-            this._connectSignal(this._focusTracker, 'focus-changed', (_tracker, focused) => {
+            this._focusTracker.connectObject('focus-changed', (_tracker, focused) => {
                 if (focused)
                     this.open(Main.layoutManager.focusIndex);
                 else
                     this.close();
-            });
+            }, this);
         }
 
         this._showIdleId = 0;
@@ -1312,20 +1327,12 @@ var Keyboard = GObject.registerClass({
         this._keyboardRequested = false;
         this._keyboardRestingId = 0;
 
-        this._connectSignal(Main.layoutManager, 'monitors-changed', this._relayout.bind(this));
+        Main.layoutManager.connectObject('monitors-changed',
+            this._relayout.bind(this), this);
 
         this._setupKeyboard();
 
         this.connect('destroy', this._onDestroy.bind(this));
-    }
-
-    _connectSignal(obj, signal, callback) {
-        if (!this._connectionsIDs)
-            this._connectionsIDs = [];
-
-        let id = obj.connect(signal, callback);
-        this._connectionsIDs.push([obj, id]);
-        return id;
     }
 
     get visible() {
@@ -1351,10 +1358,6 @@ var Keyboard = GObject.registerClass({
             this._focusTracker.destroy();
             delete this._focusTracker;
         }
-
-        for (let [obj, id] of this._connectionsIDs)
-            obj.disconnect(id);
-        delete this._connectionsIDs;
 
         this._clearShowIdle();
 
@@ -1399,10 +1402,10 @@ var Keyboard = GObject.registerClass({
         this._emojiSelection.hide();
 
         this._keypad = new Keypad();
-        this._connectSignal(this._keypad, 'keyval', (_keypad, keyval) => {
+        this._keypad.connectObject('keyval', (_keypad, keyval) => {
             this._keyboardController.keyvalPress(keyval);
             this._keyboardController.keyvalRelease(keyval);
-        });
+        }, this);
         this._aspectContainer.add_child(this._keypad);
         this._keypad.hide();
         this._keypadVisible = false;
@@ -1415,20 +1418,18 @@ var Keyboard = GObject.registerClass({
         // keyboard on RTL locales.
         this.text_direction = Clutter.TextDirection.LTR;
 
-        this._connectSignal(this._keyboardController, 'active-group',
-            this._onGroupChanged.bind(this));
-        this._connectSignal(this._keyboardController, 'groups-changed',
-            this._onKeyboardGroupsChanged.bind(this));
-        this._connectSignal(this._keyboardController, 'panel-state',
-            this._onKeyboardStateChanged.bind(this));
-        this._connectSignal(this._keyboardController, 'keypad-visible',
-            this._onKeypadVisible.bind(this));
-        this._connectSignal(global.stage, 'notify::key-focus',
-            this._onKeyFocusChanged.bind(this));
+        this._keyboardController.connectObject(
+            'active-group', this._onGroupChanged.bind(this),
+            'groups-changed', this._onKeyboardGroupsChanged.bind(this),
+            'panel-state', this._onKeyboardStateChanged.bind(this),
+            'keypad-visible', this._onKeypadVisible.bind(this),
+            this);
+        global.stage.connectObject('notify::key-focus',
+            this._onKeyFocusChanged.bind(this), this);
 
         if (Meta.is_wayland_compositor()) {
-            this._connectSignal(this._keyboardController, 'emoji-visible',
-                this._onEmojiKeyVisible.bind(this));
+            this._keyboardController.connectObject('emoji-visible',
+                this._onEmojiKeyVisible.bind(this), this);
         }
 
         this._relayout();
@@ -2042,26 +2043,20 @@ var KeyboardController = class {
         this._virtualDevice = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
 
         this._inputSourceManager = InputSourceManager.getInputSourceManager();
-        this._sourceChangedId = this._inputSourceManager.connect('current-source-changed',
-                                                                 this._onSourceChanged.bind(this));
-        this._sourcesModifiedId = this._inputSourceManager.connect('sources-changed',
-                                                                   this._onSourcesModified.bind(this));
+        this._inputSourceManager.connectObject(
+            'current-source-changed', this._onSourceChanged.bind(this),
+            'sources-changed', this._onSourcesModified.bind(this), this);
         this._currentSource = this._inputSourceManager.currentSource;
 
-        this._notifyContentPurposeId = Main.inputMethod.connect(
-            'notify::content-purpose', this._onContentPurposeHintsChanged.bind(this));
-        this._notifyContentHintsId = Main.inputMethod.connect(
-            'notify::content-hints', this._onContentPurposeHintsChanged.bind(this));
-        this._notifyInputPanelStateId = Main.inputMethod.connect(
-            'input-panel-state', (o, state) => this.emit('panel-state', state));
+        Main.inputMethod.connectObject(
+            'notify::content-purpose', this._onContentPurposeHintsChanged.bind(this),
+            'notify::content-hints', this._onContentPurposeHintsChanged.bind(this),
+            'input-panel-state', (o, state) => this.emit('panel-state', state), this);
     }
 
     destroy() {
-        this._inputSourceManager.disconnect(this._sourceChangedId);
-        this._inputSourceManager.disconnect(this._sourcesModifiedId);
-        Main.inputMethod.disconnect(this._notifyContentPurposeId);
-        Main.inputMethod.disconnect(this._notifyContentHintsId);
-        Main.inputMethod.disconnect(this._notifyInputPanelStateId);
+        this._inputSourceManager.disconnectObject(this);
+        Main.inputMethod.disconnectObject(this);
 
         // Make sure any buttons pressed by the virtual device are released
         // immediately instead of waiting for the next GC cycle

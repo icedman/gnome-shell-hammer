@@ -18,14 +18,11 @@ const FprintManagerProxy = Gio.DBusProxy.makeProxyWrapper(FprintManagerIface);
 const FprintDeviceIface = loadInterfaceXML('net.reactivated.Fprint.Device');
 const FprintDeviceProxy = Gio.DBusProxy.makeProxyWrapper(FprintDeviceIface);
 
-Gio._promisify(Gdm.Client.prototype,
-    'open_reauthentication_channel', 'open_reauthentication_channel_finish');
-Gio._promisify(Gdm.Client.prototype,
-    'get_user_verifier', 'get_user_verifier_finish');
+Gio._promisify(Gdm.Client.prototype, 'open_reauthentication_channel');
+Gio._promisify(Gdm.Client.prototype, 'get_user_verifier');
 Gio._promisify(Gdm.UserVerifierProxy.prototype,
-    'call_begin_verification_for_user', 'call_begin_verification_for_user_finish');
-Gio._promisify(Gdm.UserVerifierProxy.prototype,
-    'call_begin_verification', 'call_begin_verification_finish');
+    'call_begin_verification_for_user');
+Gio._promisify(Gdm.UserVerifierProxy.prototype, 'call_begin_verification');
 
 var PASSWORD_SERVICE_NAME = 'gdm-password';
 var FINGERPRINT_SERVICE_NAME = 'gdm-fingerprint';
@@ -115,8 +112,10 @@ function cloneAndFadeOutActor(actor) {
     // and reveals its sibling.
     actor.hide();
 
-    let clone = new Clutter.Clone({ source: actor,
-                                    reactive: false });
+    const clone = new Clutter.Clone({
+        source: actor,
+        reactive: false,
+    });
 
     Main.uiGroup.add_child(clone);
 
@@ -166,10 +165,9 @@ var ShellUserVerifier = class {
         this.smartcardDetected = false;
         this._checkForSmartcard();
 
-        this._smartcardInsertedId = this._smartcardManager.connect('smartcard-inserted',
-                                                                   this._checkForSmartcard.bind(this));
-        this._smartcardRemovedId = this._smartcardManager.connect('smartcard-removed',
-                                                                  this._checkForSmartcard.bind(this));
+        this._smartcardManager.connectObject(
+            'smartcard-inserted', this._checkForSmartcard.bind(this),
+            'smartcard-removed', this._checkForSmartcard.bind(this), this);
 
         this._messageQueue = [];
         this._messageQueueTimeoutId = 0;
@@ -188,9 +186,8 @@ var ShellUserVerifier = class {
                     this._credentialManagers[service].token);
             }
 
-            this._credentialManagers[service]._authenticatedSignalId =
-                this._credentialManagers[service].connect('user-authenticated',
-                                                          this._onCredentialManagerAuthenticated.bind(this));
+            this._credentialManagers[service].connectObject('user-authenticated',
+                this._onCredentialManagerAuthenticated.bind(this), this);
         }
     }
 
@@ -237,6 +234,10 @@ var ShellUserVerifier = class {
             this._disconnectSignals();
             this._userVerifier.run_dispose();
             this._userVerifier = null;
+            if (this._userVerifierChoiceList) {
+                this._userVerifierChoiceList.run_dispose();
+                this._userVerifierChoiceList = null;
+            }
         }
     }
 
@@ -256,15 +257,18 @@ var ShellUserVerifier = class {
         this._settings.run_dispose();
         this._settings = null;
 
-        this._smartcardManager.disconnect(this._smartcardInsertedId);
-        this._smartcardManager.disconnect(this._smartcardRemovedId);
+        this._smartcardManager.disconnectObject(this);
         this._smartcardManager = null;
 
         for (let service in this._credentialManagers) {
             let credentialManager = this._credentialManagers[service];
-            credentialManager.disconnect(credentialManager._authenticatedSignalId);
+            credentialManager.disconnectObject(this);
             credentialManager = null;
         }
+    }
+
+    selectChoice(serviceName, key) {
+        this._userVerifierChoiceList.call_select_choice(serviceName, key, this._cancellable, null);
     }
 
     answerQuery(serviceName, answer) {
@@ -453,6 +457,11 @@ var ShellUserVerifier = class {
             return;
         }
 
+        if (this._client.get_user_verifier_choice_list)
+            this._userVerifierChoiceList = this._client.get_user_verifier_choice_list();
+        else
+            this._userVerifierChoiceList = null;
+
         this.reauthenticating = true;
         this._connectSignals();
         this._beginVerification();
@@ -471,6 +480,11 @@ var ShellUserVerifier = class {
             return;
         }
 
+        if (this._client.get_user_verifier_choice_list)
+            this._userVerifierChoiceList = this._client.get_user_verifier_choice_list();
+        else
+            this._userVerifierChoiceList = null;
+
         this._connectSignals();
         this._beginVerification();
         this._hold.release();
@@ -478,32 +492,26 @@ var ShellUserVerifier = class {
 
     _connectSignals() {
         this._disconnectSignals();
-        this._signalIds = [];
 
-        let id = this._userVerifier.connect('info', this._onInfo.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('problem', this._onProblem.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('info-query', this._onInfoQuery.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('secret-info-query', this._onSecretInfoQuery.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('conversation-stopped', this._onConversationStopped.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('service-unavailable', this._onServiceUnavailable.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('reset', this._onReset.bind(this));
-        this._signalIds.push(id);
-        id = this._userVerifier.connect('verification-complete', this._onVerificationComplete.bind(this));
-        this._signalIds.push(id);
+        this._userVerifier.connectObject(
+            'info', this._onInfo.bind(this),
+            'problem', this._onProblem.bind(this),
+            'info-query', this._onInfoQuery.bind(this),
+            'secret-info-query', this._onSecretInfoQuery.bind(this),
+            'conversation-stopped', this._onConversationStopped.bind(this),
+            'service-unavailable', this._onServiceUnavailable.bind(this),
+            'reset', this._onReset.bind(this),
+            'verification-complete', this._onVerificationComplete.bind(this),
+            this);
+
+        if (this._userVerifierChoiceList) {
+            this._userVerifierChoiceList.connectObject('choice-query',
+                this._onChoiceListQuery.bind(this), this);
+        }
     }
 
     _disconnectSignals() {
-        if (!this._signalIds || !this._userVerifier)
-            return;
-
-        this._signalIds.forEach(s => this._userVerifier.disconnect(s));
-        this._signalIds = [];
+        this._userVerifier?.disconnectObject(this);
     }
 
     _getForegroundService() {
@@ -554,14 +562,16 @@ var ShellUserVerifier = class {
             if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 return;
             if (!this.serviceIsForeground(serviceName)) {
-                logError(e, 'Failed to start %s for %s'.format(serviceName, this._userName));
+                logError(e,
+                    `Failed to start ${serviceName} for ${this._userName}`);
                 this._hold.release();
                 return;
             }
-            this._reportInitError(this._userName
-                ? 'Failed to start %s verification for user'.format(serviceName)
-                : 'Failed to start %s verification'.format(serviceName), e,
-            serviceName);
+            this._reportInitError(
+                this._userName
+                    ? `Failed to start ${serviceName} verification for user`
+                    : `Failed to start ${serviceName} verification`,
+                e, serviceName);
             return;
         }
         this._hold.release();
@@ -574,6 +584,13 @@ var ShellUserVerifier = class {
             this._fingerprintReaderType !== FingerprintReaderType.NONE &&
             !this.serviceIsForeground(FINGERPRINT_SERVICE_NAME))
             this._startService(FINGERPRINT_SERVICE_NAME);
+    }
+
+    _onChoiceListQuery(client, serviceName, promptMessage, list) {
+        if (!this.serviceIsForeground(serviceName))
+            return;
+
+        this.emit('show-choice-list', serviceName, promptMessage, list.deep_unpack());
     }
 
     _onInfo(client, serviceName, info) {

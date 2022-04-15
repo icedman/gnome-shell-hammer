@@ -6,31 +6,6 @@ const { Clutter, St } = imports.gi;
 const Main = imports.ui.main;
 const Params = imports.misc.params;
 
-let _capturedEventId = 0;
-let _grabHelperStack = [];
-function _onCapturedEvent(actor, event) {
-    let grabHelper = _grabHelperStack[_grabHelperStack.length - 1];
-    return grabHelper.onCapturedEvent(event);
-}
-
-function _pushGrabHelper(grabHelper) {
-    _grabHelperStack.push(grabHelper);
-
-    if (_capturedEventId == 0)
-        _capturedEventId = global.stage.connect('captured-event', _onCapturedEvent);
-}
-
-function _popGrabHelper(grabHelper) {
-    let poppedHelper = _grabHelperStack.pop();
-    if (poppedHelper != grabHelper)
-        throw new Error("incorrect grab helper pop");
-
-    if (_grabHelperStack.length == 0) {
-        global.stage.disconnect(_capturedEventId);
-        _capturedEventId = 0;
-    }
-}
-
 // GrabHelper:
 // @owner: the actor that owns the GrabHelper
 // @params: optional parameters to pass to Main.pushModal()
@@ -52,44 +27,14 @@ var GrabHelper = class GrabHelper {
 
         this._grabStack = [];
 
-        this._actors = [];
         this._ignoreUntilRelease = false;
 
         this._modalCount = 0;
     }
 
-    // addActor:
-    // @actor: an actor
-    //
-    // Adds @actor to the set of actors that are allowed to process events
-    // during a grab.
-    addActor(actor) {
-        actor.__grabHelperDestroyId = actor.connect('destroy', () => {
-            this.removeActor(actor);
-        });
-        this._actors.push(actor);
-    }
-
-    // removeActor:
-    // @actor: an actor
-    //
-    // Removes @actor from the set of actors that are allowed to
-    // process events during a grab.
-    removeActor(actor) {
-        let index = this._actors.indexOf(actor);
-        if (index != -1)
-            this._actors.splice(index, 1);
-        if (actor.__grabHelperDestroyId) {
-            actor.disconnect(actor.__grabHelperDestroyId);
-            delete actor.__grabHelperDestroyId;
-        }
-    }
-
     _isWithinGrabbedActor(actor) {
         let currentActor = this.currentGrab.actor;
         while (actor) {
-            if (this._actors.includes(actor))
-                return true;
             if (actor == currentActor)
                 return true;
             actor = actor.get_parent();
@@ -166,9 +111,11 @@ var GrabHelper = class GrabHelper {
     // use cases like menus, where we want to grab the menu actor, but keep
     // focus on the clicked on menu item.
     grab(params) {
-        params = Params.parse(params, { actor: null,
-                                        focus: null,
-                                        onUngrab: null });
+        params = Params.parse(params, {
+            actor: null,
+            focus: null,
+            onUngrab: null,
+        });
 
         let focus = global.stage.key_focus;
         let hadFocus = focus && this._isWithinGrabbedActor(focus);
@@ -206,10 +153,17 @@ var GrabHelper = class GrabHelper {
     _takeModalGrab() {
         let firstGrab = this._modalCount == 0;
         if (firstGrab) {
-            if (!Main.pushModal(this._owner, this._modalParams))
+            let grab = Main.pushModal(this._owner, this._modalParams);
+            if (grab.get_seat_state() === Clutter.GrabState.NONE) {
+                Main.popModal(grab);
                 return false;
+            }
 
-            _pushGrabHelper(this);
+            this._grab = grab;
+            this._capturedEventId = this._owner.connect('captured-event',
+                (actor, event) => {
+                    return this.onCapturedEvent(event);
+                });
         }
 
         this._modalCount++;
@@ -221,11 +175,11 @@ var GrabHelper = class GrabHelper {
         if (this._modalCount > 0)
             return;
 
-        _popGrabHelper(this);
-
+        this._owner.disconnect(this._capturedEventId);
         this._ignoreUntilRelease = false;
 
-        Main.popModal(this._owner);
+        Main.popModal(this._grab);
+        this._grab = null;
     }
 
     // ignoreRelease:
@@ -250,8 +204,10 @@ var GrabHelper = class GrabHelper {
     // The onUngrab callback for every grab is called for every popped
     // grab with the parameter %false.
     ungrab(params) {
-        params = Params.parse(params, { actor: this.currentGrab.actor,
-                                        isUser: false });
+        params = Params.parse(params, {
+            actor: this.currentGrab.actor,
+            isUser: false,
+        });
 
         let grabStackIndex = this._findStackIndex(params.actor);
         if (grabStackIndex < 0)
@@ -309,10 +265,14 @@ var GrabHelper = class GrabHelper {
             return Clutter.EVENT_PROPAGATE;
         }
 
-        if (this._isWithinGrabbedActor(event.get_source()))
+        const targetActor = global.stage.get_event_actor(event);
+
+        if (type === Clutter.EventType.ENTER ||
+            type === Clutter.EventType.LEAVE ||
+            this.currentGrab.actor.contains(targetActor))
             return Clutter.EVENT_PROPAGATE;
 
-        if (Main.keyboard.shouldTakeEvent(event))
+        if (Main.keyboard.maybeHandleEvent(event))
             return Clutter.EVENT_PROPAGATE;
 
         if (button || touchBegin) {
@@ -321,7 +281,7 @@ var GrabHelper = class GrabHelper {
             if (press || touchBegin)
                 this._ignoreUntilRelease = true;
 
-            let i = this._actorInGrabStack(event.get_source()) + 1;
+            let i = this._actorInGrabStack(targetActor) + 1;
             this.ungrab({ actor: this._grabStack[i].actor, isUser: true });
             return Clutter.EVENT_STOP;
         }

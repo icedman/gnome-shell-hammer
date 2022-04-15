@@ -64,22 +64,24 @@ class AccessDialog extends ModalDialog.ModalDialog {
         });
         content.add_child(bodyLabel);
 
-        this.addButton({ label: denyLabel,
-                         action: () => {
-                             this._sendResponse(DialogResponse.CANCEL);
-                         },
-                         key: Clutter.KEY_Escape });
-        this.addButton({ label: grantLabel,
-                         action: () => {
-                             this._sendResponse(DialogResponse.OK);
-                         } });
+        this.addButton({
+            label: denyLabel,
+            action: () => this._sendResponse(DialogResponse.CANCEL),
+            key: Clutter.KEY_Escape,
+        });
+        this.addButton({
+            label: grantLabel,
+            action: () => this._sendResponse(DialogResponse.OK),
+        });
     }
 
     open() {
-        super.open();
+        if (!super.open())
+            return false;
 
         let connection = this._invocation.get_connection();
         this._requestExported = this._request.export(connection, this._handle);
+        return true;
     }
 
     CloseAsync(invocation, _params) {
@@ -138,7 +140,7 @@ var AccessDialogDBus = class {
         let [handle, appId, parentWindow_, title, description, body, options] = params;
         // We probably want to use parentWindow and global.display.focus_window
         // for this check in the future
-        if (appId && '%s.desktop'.format(appId) != this._windowTracker.focus_app.id) {
+        if (appId && `${appId}.desktop` !== this._windowTracker.focus_app.id) {
             invocation.return_error_literal(Gio.DBusError,
                                             Gio.DBusError.ACCESS_DENIED,
                                             'Only the focused app is allowed to show a system access dialog');

@@ -1,8 +1,10 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 /* exported DateMenuButton */
 
-const { Clutter, Gio, GLib, GnomeDesktop,
-        GObject, GWeather, Pango, Shell, St } = imports.gi;
+const {
+    Clutter, Gio, GLib, GnomeDesktop,
+    GObject, GWeather, Pango, Shell, St,
+} = imports.gi;
 
 const Util = imports.misc.util;
 const Main = imports.ui.main;
@@ -13,11 +15,11 @@ const System = imports.system;
 
 const { loadInterfaceXML } = imports.misc.fileUtils;
 
-const NC_ = (context, str) => '%s\u0004%s'.format(context, str);
+const NC_ = (context, str) => `${context}\u0004${str}`;
 const T_ = Shell.util_translate_time_string;
 
 const MAX_FORECASTS = 5;
-const ELLIPSIS_CHAR = '\u2026';
+const EN_CHAR = '\u2013';
 
 const ClocksIntegrationIface = loadInterfaceXML('org.gnome.Shell.ClocksIntegration');
 const ClocksProxy = Gio.DBusProxy.makeProxyWrapper(ClocksIntegrationIface);
@@ -49,8 +51,10 @@ class TodayButton extends St.Button {
         let hbox = new St.BoxLayout({ vertical: true });
         this.add_actor(hbox);
 
-        this._dayLabel = new St.Label({ style_class: 'day-label',
-                                        x_align: Clutter.ActorAlign.START });
+        this._dayLabel = new St.Label({
+            style_class: 'day-label',
+            x_align: Clutter.ActorAlign.START,
+        });
         hbox.add_actor(this._dayLabel);
 
         this._dateLabel = new St.Label({ style_class: 'date-label' });
@@ -169,9 +173,24 @@ class EventsSection extends St.Button {
             this._title.text = this._startDate.toLocaleFormat(otherYearFormat);
     }
 
+    _isAtMidnight(eventTime) {
+        return eventTime.getHours() === 0 && eventTime.getMinutes() === 0 && eventTime.getSeconds() === 0;
+    }
+
     _formatEventTime(event) {
+        const eventStart = event.date;
+        let eventEnd = event.end;
+
         const allDay =
-            event.date <= this._startDate && event.end >= this._endDate;
+            eventStart.getTime() === this._startDate.getTime() && eventEnd.getTime() === this._endDate.getTime();
+
+        const startsBeforeToday = eventStart < this._startDate;
+        const endsAfterToday = eventEnd > this._endDate;
+
+        const startTimeOnly = Util.formatTime(eventStart, { timeOnly: true });
+        const endTimeOnly = Util.formatTime(eventEnd, { timeOnly: true });
+
+        const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
 
         let title;
         if (allDay) {
@@ -179,24 +198,46 @@ class EventsSection extends St.Button {
              * Keep it short, best if you can use less then 10 characters
              */
             title = C_('event list time', 'All Day');
+        } else if (startsBeforeToday || endsAfterToday) {
+            const now = new Date();
+            const thisYear = now.getFullYear();
+
+            const startsAtMidnight = this._isAtMidnight(eventStart);
+            const endsAtMidnight = this._isAtMidnight(eventEnd);
+
+            const startYear = eventStart.getFullYear();
+
+            if (endsAtMidnight) {
+                eventEnd = new Date(eventEnd);
+                eventEnd.setDate(eventEnd.getDate() - 1);
+            }
+
+            const endYear = eventEnd.getFullYear();
+
+            let format;
+            if (startYear === thisYear && thisYear === endYear)
+                /* Translators: Shown in calendar event list as the start/end of events
+                 * that only show day and month
+                 */
+                format = T_('%m/%d');
+            else
+                format = '%x';
+
+            const startDateOnly = eventStart.toLocaleFormat(format);
+            const endDateOnly = eventEnd.toLocaleFormat(format);
+
+            if (startsAtMidnight && endsAtMidnight)
+                title = `${rtl ? endDateOnly : startDateOnly} ${EN_CHAR} ${rtl ? startDateOnly : endDateOnly}`;
+            else if (rtl)
+                title = `${endTimeOnly} ${endDateOnly} ${EN_CHAR} ${startTimeOnly} ${startDateOnly}`;
+            else
+                title = `${startDateOnly} ${startTimeOnly} ${EN_CHAR} ${endDateOnly} ${endTimeOnly}`;
+        } else if (eventStart === eventEnd) {
+            title = startTimeOnly;
         } else {
-            let date = event.date >= this._startDate ? event.date : event.end;
-            title = Util.formatTime(date, { timeOnly: true });
+            title = `${rtl ? endTimeOnly : startTimeOnly} ${EN_CHAR} ${rtl ? startTimeOnly : endTimeOnly}`;
         }
 
-        const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
-        if (event.date < this._startDate) {
-            if (rtl)
-                title = '%s%s'.format(title, ELLIPSIS_CHAR);
-            else
-                title = '%s%s'.format(ELLIPSIS_CHAR, title);
-        }
-        if (event.end > this._endDate) {
-            if (rtl)
-                title = '%s%s'.format(ELLIPSIS_CHAR, title);
-            else
-                title = '%s%s'.format(title, ELLIPSIS_CHAR);
-        }
         return title;
     }
 
@@ -286,9 +327,11 @@ class WorldClocksSection extends St.Button {
         this._locations = [];
 
         let layout = new Clutter.GridLayout({ orientation: Clutter.Orientation.VERTICAL });
-        this._grid = new St.Widget({ style_class: 'world-clocks-grid',
-                                     x_expand: true,
-                                     layout_manager: layout });
+        this._grid = new St.Widget({
+            style_class: 'world-clocks-grid',
+            x_expand: true,
+            layout_manager: layout,
+        });
         layout.hookup_style(this._grid);
 
         this.child = this._grid;
@@ -339,18 +382,24 @@ class WorldClocksSection extends St.Button {
                 this._locations.push({ location: l });
         }
 
+        const unixtime = GLib.DateTime.new_now_local().to_unix();
         this._locations.sort((a, b) => {
-            return a.location.get_timezone().get_offset() -
-                   b.location.get_timezone().get_offset();
+            const tzA = a.location.get_timezone();
+            const tzB = b.location.get_timezone();
+            const intA = tzA.find_interval(GLib.TimeType.STANDARD, unixtime);
+            const intB = tzB.find_interval(GLib.TimeType.STANDARD, unixtime);
+            return tzA.get_offset(intA) - tzB.get_offset(intB);
         });
 
         let layout = this._grid.layout_manager;
         let title = this._locations.length == 0
             ? _("Add world clocks…")
             : _("World Clocks");
-        let header = new St.Label({ style_class: 'world-clocks-header',
-                                    x_align: Clutter.ActorAlign.START,
-                                    text: title });
+        const header = new St.Label({
+            style_class: 'world-clocks-header',
+            x_align: Clutter.ActorAlign.START,
+            text: title,
+        });
         layout.attach(header, 0, 0, 2, 1);
         this.label_actor = header;
 
@@ -358,11 +407,13 @@ class WorldClocksSection extends St.Button {
             let l = this._locations[i].location;
 
             let name = l.get_city_name() || l.get_name();
-            let label = new St.Label({ style_class: 'world-clocks-city',
-                                       text: name,
-                                       x_align: Clutter.ActorAlign.START,
-                                       y_align: Clutter.ActorAlign.CENTER,
-                                       x_expand: true });
+            const label = new St.Label({
+                style_class: 'world-clocks-city',
+                text: name,
+                x_align: Clutter.ActorAlign.START,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+            });
 
             let time = new St.Label({ style_class: 'world-clocks-time' });
 
@@ -412,8 +463,9 @@ class WorldClocksSection extends St.Button {
     }
 
     _getTimezoneOffsetAtLocation(location) {
+        const tz = location.get_timezone();
         const localOffset = GLib.DateTime.new_now_local().get_utc_offset();
-        const utcOffset = this._getTimeAtLocation(location).get_utc_offset();
+        const utcOffset = GLib.DateTime.new_now(tz).get_utc_offset();
         const offsetCurrentTz = utcOffset - localOffset;
         const offsetHours = Math.abs(offsetCurrentTz) / GLib.TIME_SPAN_HOUR;
         const offsetMinutes =
@@ -422,20 +474,15 @@ class WorldClocksSection extends St.Button {
 
         const prefix = offsetCurrentTz >= 0 ? '+' : '-';
         const text = offsetMinutes === 0
-            ? '%s%d'.format(prefix, offsetHours)
-            : '%s%d\u2236%d'.format(prefix, offsetHours, offsetMinutes);
+            ? `${prefix}${offsetHours}`
+            : `${prefix}${offsetHours}\u2236${offsetMinutes}`;
         return text;
-    }
-
-    _getTimeAtLocation(location) {
-        let tz = GLib.TimeZone.new(location.get_timezone().get_tzid());
-        return GLib.DateTime.new_now(tz);
     }
 
     _updateTimeLabels() {
         for (let i = 0; i < this._locations.length; i++) {
             let l = this._locations[i];
-            let now = this._getTimeAtLocation(l.location);
+            const now = GLib.DateTime.new_now(l.location.get_timezone());
             l.timeLabel.text = Util.formatTime(now, { timeOnly: true });
         }
     }
@@ -449,7 +496,7 @@ class WorldClocksSection extends St.Button {
 
     _onProxyReady(proxy, error) {
         if (error) {
-            log('Failed to create GNOME Clocks proxy: %s'.format(error));
+            log(`Failed to create GNOME Clocks proxy: ${error}`);
             return;
         }
 
@@ -583,7 +630,7 @@ class WeatherSection extends St.Button {
             });
             let temp = new St.Label({
                 style_class: 'weather-forecast-temp',
-                text: '%s%d°'.format(tempPrefix, Math.round(tempValue)),
+                text: `${tempPrefix}${Math.round(tempValue)}°`,
                 x_align: Clutter.ActorAlign.CENTER,
             });
 
@@ -784,7 +831,6 @@ var DateMenuButton = GObject.registerClass(
 class DateMenuButton extends PanelMenu.Button {
     _init() {
         let hbox;
-        let vbox;
 
         super._init(0.5);
 
@@ -845,23 +891,29 @@ class DateMenuButton extends PanelMenu.Button {
 
         // Fill up the second column
         const boxLayout = new CalendarColumnLayout([this._calendar, this._date]);
-        vbox = new St.Widget({ style_class: 'datemenu-calendar-column',
-                               layout_manager: boxLayout });
+        const vbox = new St.Widget({
+            style_class: 'datemenu-calendar-column',
+            layout_manager: boxLayout,
+        });
         boxLayout.hookup_style(vbox);
         hbox.add(vbox);
 
         vbox.add_actor(this._date);
         vbox.add_actor(this._calendar);
 
-        this._displaysSection = new St.ScrollView({ style_class: 'datemenu-displays-section vfade',
-                                                    x_expand: true,
-                                                    overlay_scrollbars: true });
+        this._displaysSection = new St.ScrollView({
+            style_class: 'datemenu-displays-section vfade',
+            x_expand: true,
+            overlay_scrollbars: true,
+        });
         this._displaysSection.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
         vbox.add_actor(this._displaysSection);
 
-        let displaysBox = new St.BoxLayout({ vertical: true,
-                                             x_expand: true,
-                                             style_class: 'datemenu-displays-box' });
+        const displaysBox = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            style_class: 'datemenu-displays-box',
+        });
         this._displaysSection.add_actor(displaysBox);
 
         this._eventsItem = new EventsSection();

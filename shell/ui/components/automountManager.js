@@ -31,22 +31,19 @@ var AutomountManager = class {
     }
 
     enable() {
-        this._volumeAddedId = this._volumeMonitor.connect('volume-added', this._onVolumeAdded.bind(this));
-        this._volumeRemovedId = this._volumeMonitor.connect('volume-removed', this._onVolumeRemoved.bind(this));
-        this._driveConnectedId = this._volumeMonitor.connect('drive-connected', this._onDriveConnected.bind(this));
-        this._driveDisconnectedId = this._volumeMonitor.connect('drive-disconnected', this._onDriveDisconnected.bind(this));
-        this._driveEjectButtonId = this._volumeMonitor.connect('drive-eject-button', this._onDriveEjectButton.bind(this));
+        this._volumeMonitor.connectObject(
+            'volume-added', this._onVolumeAdded.bind(this),
+            'volume-removed', this._onVolumeRemoved.bind(this),
+            'drive-connected', this._onDriveConnected.bind(this),
+            'drive-disconnected', this._onDriveDisconnected.bind(this),
+            'drive-eject-button', this._onDriveEjectButton.bind(this), this);
 
         this._mountAllId = GLib.idle_add(GLib.PRIORITY_DEFAULT, this._startupMountAll.bind(this));
         GLib.Source.set_name_by_id(this._mountAllId, '[gnome-shell] this._startupMountAll');
     }
 
     disable() {
-        this._volumeMonitor.disconnect(this._volumeAddedId);
-        this._volumeMonitor.disconnect(this._volumeRemovedId);
-        this._volumeMonitor.disconnect(this._driveConnectedId);
-        this._volumeMonitor.disconnect(this._driveDisconnectedId);
-        this._volumeMonitor.disconnect(this._driveEjectButtonId);
+        this._volumeMonitor.disconnectObject(this);
 
         if (this._mountAllId > 0) {
             GLib.source_remove(this._mountAllId);
@@ -65,9 +62,11 @@ var AutomountManager = class {
     _startupMountAll() {
         let volumes = this._volumeMonitor.get_volumes();
         volumes.forEach(volume => {
-            this._checkAndMountVolume(volume, { checkSession: false,
-                                                useMountOp: false,
-                                                allowAutorun: false });
+            this._checkAndMountVolume(volume, {
+                checkSession: false,
+                useMountOp: false,
+                allowAutorun: false,
+            });
         });
 
         this._mountAllId = 0;
@@ -112,7 +111,7 @@ var AutomountManager = class {
                     try {
                         drive.stop_finish(res);
                     } catch (e) {
-                        log('Unable to stop the drive after drive-eject-button %s'.format(e.toString()));
+                        log(`Unable to stop the drive after drive-eject-button ${e.toString()}`);
                     }
                 });
         } else if (drive.can_eject()) {
@@ -121,7 +120,7 @@ var AutomountManager = class {
                     try {
                         drive.eject_with_operation_finish(res);
                     } catch (e) {
-                        log('Unable to eject the drive after drive-eject-button %s'.format(e.toString()));
+                        log(`Unable to eject the drive after drive-eject-button ${e.toString()}`);
                     }
                 });
         }
@@ -132,9 +131,11 @@ var AutomountManager = class {
     }
 
     _checkAndMountVolume(volume, params) {
-        params = Params.parse(params, { checkSession: true,
-                                        useMountOp: true,
-                                        allowAutorun: true });
+        params = Params.parse(params, {
+            checkSession: true,
+            useMountOp: true,
+            allowAutorun: true,
+        });
 
         if (params.checkSession) {
             // if we're not in the current ConsoleKit session,
@@ -208,7 +209,7 @@ var AutomountManager = class {
                 }
 
                 if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.FAILED_HANDLED))
-                    log('Unable to mount volume %s: %s'.format(volume.get_name(), e.toString()));
+                    log(`Unable to mount volume ${volume.get_name()}: ${e.toString()}`);
                 this._closeOperation(volume);
             }
         }

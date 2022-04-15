@@ -101,7 +101,7 @@ const LoginManager = imports.misc.loginManager;
 const Main = imports.ui.main;
 const Params = imports.misc.params;
 
-Gio._promisify(Gio._LocalFilePrototype, 'query_info_async', 'query_info_finish');
+Gio._promisify(Gio.File.prototype, 'query_info_async');
 
 var DEFAULT_BACKGROUND_COLOR = Clutter.Color.from_pixel(0x2e3436ff);
 
@@ -111,6 +111,10 @@ const SECONDARY_COLOR_KEY = 'secondary-color';
 const COLOR_SHADING_TYPE_KEY = 'color-shading-type';
 const BACKGROUND_STYLE_KEY = 'picture-options';
 const PICTURE_URI_KEY = 'picture-uri';
+const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
+
+const INTERFACE_SCHEMA = 'org.gnome.desktop.interface';
+const COLOR_SCHEME_KEY = 'color-scheme';
 
 var FADE_ANIMATION_TIME = 1000;
 
@@ -159,9 +163,11 @@ var BackgroundCache = class BackgroundCache {
     }
 
     getAnimation(params) {
-        params = Params.parse(params, { file: null,
-                                        settingsSchema: null,
-                                        onLoaded: null });
+        params = Params.parse(params, {
+            file: null,
+            settingsSchema: null,
+            onLoaded: null,
+        });
 
         let animation = this._animations[params.settingsSchema];
         if (animation && _fileEqual0(animation.file, params.file)) {
@@ -177,7 +183,7 @@ var BackgroundCache = class BackgroundCache {
 
         animation = new Animation({ file: params.file });
 
-        animation.load(() => {
+        animation.load_async(null, () => {
             this._animations[params.settingsSchema] = animation;
 
             if (params.onLoaded) {
@@ -227,11 +233,13 @@ var Background = GObject.registerClass({
     Signals: { 'loaded': {}, 'bg-changed': {} },
 }, class Background extends Meta.Background {
     _init(params) {
-        params = Params.parse(params, { monitorIndex: 0,
-                                        layoutManager: Main.layoutManager,
-                                        settings: null,
-                                        file: null,
-                                        style: null });
+        params = Params.parse(params, {
+            monitorIndex: 0,
+            layoutManager: Main.layoutManager,
+            settings: null,
+            file: null,
+            style: null,
+        });
 
         super._init({ meta_display: global.display });
 
@@ -244,23 +252,28 @@ var Background = GObject.registerClass({
         this._cancellable = new Gio.Cancellable();
         this.isLoaded = false;
 
+        this._interfaceSettings = new Gio.Settings({ schema_id: INTERFACE_SCHEMA });
+
         this._clock = new GnomeDesktop.WallClock();
-        this._timezoneChangedId = this._clock.connect('notify::timezone',
+        this._clock.connectObject('notify::timezone',
             () => {
                 if (this._animation)
                     this._loadAnimation(this._animation.file);
-            });
+            }, this);
 
         let loginManager = LoginManager.getLoginManager();
-        this._prepareForSleepId = loginManager.connect('prepare-for-sleep',
+        loginManager.connectObject('prepare-for-sleep',
             (lm, aboutToSuspend) => {
                 if (aboutToSuspend)
                     return;
                 this._refreshAnimation();
-            });
+            }, this);
 
-        this._settingsChangedSignalId =
-            this._settings.connect('changed', this._emitChangedSignal.bind(this));
+        this._settings.connectObject('changed',
+            this._emitChangedSignal.bind(this), this);
+
+        this._interfaceSettings.connectObject(`changed::${COLOR_SCHEME_KEY}`,
+            this._emitChangedSignal.bind(this), this);
 
         this._load();
     }
@@ -276,19 +289,12 @@ var Background = GObject.registerClass({
 
         this._fileWatches = null;
 
-        if (this._timezoneChangedId != 0)
-            this._clock.disconnect(this._timezoneChangedId);
-        this._timezoneChangedId = 0;
-
+        this._clock.disconnectObject(this);
         this._clock = null;
 
-        if (this._prepareForSleepId != 0)
-            LoginManager.getLoginManager().disconnect(this._prepareForSleepId);
-        this._prepareForSleepId = 0;
-
-        if (this._settingsChangedSignalId != 0)
-            this._settings.disconnect(this._settingsChangedSignalId);
-        this._settingsChangedSignalId = 0;
+        LoginManager.getLoginManager().disconnectObject(this);
+        this._settings.disconnectObject(this);
+        this._interfaceSettings.disconnectObject(this);
 
         if (this._changedIdleId) {
             GLib.source_remove(this._changedIdleId);
@@ -349,8 +355,6 @@ var Background = GObject.registerClass({
             this.set_color(color);
         else
             this.set_gradient(shadingType, color, secondColor);
-
-        this._setLoaded();
     }
 
     _watchFile(file) {
@@ -482,11 +486,17 @@ var Background = GObject.registerClass({
     }
 
     async _loadFile(file) {
-        const info = await file.query_info_async(
-            Gio.FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
-            Gio.FileQueryInfoFlags.NONE,
-            0,
-            null);
+        let info;
+        try {
+            info = await file.query_info_async(
+                Gio.FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
+                Gio.FileQueryInfoFlags.NONE,
+                0,
+                null);
+        } catch (e) {
+            this._setLoaded();
+            return;
+        }
 
         const contentType = info.get_content_type();
         if (contentType === 'application/xml')
@@ -546,6 +556,8 @@ var BackgroundSource = class BackgroundSource {
         this._monitorsChangedId =
             monitorManager.connect('monitors-changed',
                                    this._onMonitorsChanged.bind(this));
+
+        this._interfaceSettings = new Gio.Settings({ schema_id: INTERFACE_SCHEMA });
     }
 
     _onMonitorsChanged() {
@@ -576,7 +588,12 @@ var BackgroundSource = class BackgroundSource {
         } else {
             style = this._settings.get_enum(BACKGROUND_STYLE_KEY);
             if (style != GDesktopEnums.BackgroundStyle.NONE) {
-                let uri = this._settings.get_string(PICTURE_URI_KEY);
+                const colorScheme = this._interfaceSettings.get_enum('color-scheme');
+                const uri = this._settings.get_string(
+                    colorScheme === GDesktopEnums.ColorScheme.PREFER_DARK
+                        ? PICTURE_URI_DARK_KEY
+                        : PICTURE_URI_KEY);
+
                 file = Gio.File.new_for_commandline_arg(uri);
             }
         }
@@ -634,11 +651,12 @@ class Animation extends GnomeDesktop.BGSlideShow {
         this.loaded = false;
     }
 
-    load(callback) {
-        this.load_async(null, () => {
+    // eslint-disable-next-line camelcase
+    load_async(cancellable, callback) {
+        super.load_async(cancellable, () => {
             this.loaded = true;
-            if (callback)
-                callback();
+
+            callback?.();
         });
     }
 
@@ -710,6 +728,11 @@ var BackgroundManager = class BackgroundManager {
         this.backgroundActor = this._newBackgroundActor;
         this._newBackgroundActor = null;
         this.emit('changed');
+
+        if (Main.layoutManager.screenTransition.visible) {
+            oldBackgroundActor.destroy();
+            return;
+        }
 
         oldBackgroundActor.ease({
             opacity: 0,

@@ -47,17 +47,10 @@ class MediaMessage extends MessageList.Message {
                 this._player.next();
             });
 
-        this._updateHandlerId =
-            this._player.connect('changed', this._update.bind(this));
-        this._closedHandlerId =
-            this._player.connect('closed', this.close.bind(this));
+        this._player.connectObject(
+            'changed', this._update.bind(this),
+            'closed', this.close.bind(this), this);
         this._update();
-    }
-
-    _onDestroy() {
-        super._onDestroy();
-        this._player.disconnect(this._updateHandlerId);
-        this._player.disconnect(this._closedHandlerId);
     }
 
     vfunc_clicked() {
@@ -150,7 +143,7 @@ var MprisPlayer = class MprisPlayer {
         // so prefer activating the app via .desktop file if possible
         let app = null;
         if (this._mprisProxy.DesktopEntry) {
-            let desktopId = '%s.desktop'.format(this._mprisProxy.DesktopEntry);
+            let desktopId = `${this._mprisProxy.DesktopEntry}.desktop`;
             app = Shell.AppSystem.get_default().lookup_app(desktopId);
         }
 
@@ -161,21 +154,21 @@ var MprisPlayer = class MprisPlayer {
     }
 
     _close() {
-        this._mprisProxy.disconnect(this._ownerNotifyId);
+        this._mprisProxy.disconnectObject(this);
         this._mprisProxy = null;
 
-        this._playerProxy.disconnect(this._propsChangedId);
+        this._playerProxy.disconnectObject(this);
         this._playerProxy = null;
 
         this.emit('closed');
     }
 
     _onMprisProxyReady() {
-        this._ownerNotifyId = this._mprisProxy.connect('notify::g-name-owner',
+        this._mprisProxy.connectObject('notify::g-name-owner',
             () => {
                 if (!this._mprisProxy.g_name_owner)
                     this._close();
-            });
+            }, this);
         // It is possible for the bus to disappear before the previous signal
         // is connected, so we must ensure that the bus still exists at this
         // point.
@@ -184,8 +177,8 @@ var MprisPlayer = class MprisPlayer {
     }
 
     _onPlayerProxyReady() {
-        this._propsChangedId = this._playerProxy.connect('g-properties-changed',
-                                                         this._updateState.bind(this));
+        this._playerProxy.connectObject(
+            'g-properties-changed', () => this._updateState(), this);
         this._updateState();
     }
 
@@ -200,9 +193,9 @@ var MprisPlayer = class MprisPlayer {
         if (!Array.isArray(this._trackArtists) ||
             !this._trackArtists.every(artist => typeof artist === 'string')) {
             if (typeof this._trackArtists !== 'undefined') {
-                log(('Received faulty track artist metadata from %s; ' +
-                    'expected an array of strings, got %s (%s)').format(
-                    this._busName, this._trackArtists, typeof this._trackArtists));
+                log(`Received faulty track artist metadata from ${
+                    this._busName}; expected an array of strings, got ${
+                    this._trackArtists} (${typeof this._trackArtists})`);
             }
             this._trackArtists =  [_("Unknown artist")];
         }
@@ -210,9 +203,9 @@ var MprisPlayer = class MprisPlayer {
         this._trackTitle = metadata['xesam:title'];
         if (typeof this._trackTitle !== 'string') {
             if (typeof this._trackTitle !== 'undefined') {
-                log(('Received faulty track title metadata from %s; ' +
-                    'expected a string, got %s (%s)').format(
-                    this._busName, this._trackTitle, typeof this._trackTitle));
+                log(`Received faulty track title metadata from ${
+                    this._busName}; expected a string, got ${
+                    this._trackTitle} (${typeof this._trackTitle})`);
             }
             this._trackTitle = _("Unknown title");
         }
@@ -220,9 +213,9 @@ var MprisPlayer = class MprisPlayer {
         this._trackCoverUrl = metadata['mpris:artUrl'];
         if (typeof this._trackCoverUrl !== 'string') {
             if (typeof this._trackCoverUrl !== 'undefined') {
-                log(('Received faulty track cover art metadata from %s; ' +
-                    'expected a string, got %s (%s)').format(
-                    this._busName, this._trackCoverUrl, typeof this._trackCoverUrl));
+                log(`Received faulty track cover art metadata from ${
+                    this._busName}; expected a string, got ${
+                    this._trackCoverUrl} (${typeof this._trackCoverUrl})`);
             }
             this._trackCoverUrl = '';
         }

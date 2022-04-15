@@ -28,7 +28,7 @@ function _setButtonsForChoices(dialog, oldChoices, choices) {
     for (let idx = 0; idx < choices.length; idx++) {
         let button = idx;
 
-        buttonsChanged = buttonsChanged || oldChoices[idx] !== choices[idx];
+        buttonsChanged ||= oldChoices[idx] !== choices[idx];
 
         buttons.unshift({
             label: choices[idx],
@@ -54,7 +54,6 @@ var ShellMountOperation = class {
         params = Params.parse(params, { existingDialog: null });
 
         this._dialog = null;
-        this._dialogId = 0;
         this._existingDialog = params.existingDialog;
         this._processesDialog = null;
 
@@ -84,13 +83,13 @@ var ShellMountOperation = class {
         this._closeExistingDialog();
         this._dialog = new ShellMountQuestionDialog();
 
-        this._dialogId = this._dialog.connect('response',
+        this._dialog.connectObject('response',
             (object, choice) => {
                 this.mountOp.set_choice(choice);
                 this.mountOp.reply(Gio.MountOperationResult.HANDLED);
 
                 this.close();
-            });
+            }, this);
 
         this._dialog.update(message, choices);
         this._dialog.open();
@@ -104,7 +103,7 @@ var ShellMountOperation = class {
             this._dialog = new ShellMountPasswordDialog(message, flags);
         }
 
-        this._dialogId = this._dialog.connect('response',
+        this._dialog.connectObject('response',
             (object, choice, password, remember, hiddenVolume, systemVolume, pim) => {
                 if (choice == -1) {
                     this.mountOp.reply(Gio.MountOperationResult.ABORTED);
@@ -120,7 +119,7 @@ var ShellMountOperation = class {
                     this.mountOp.set_pim(pim);
                     this.mountOp.reply(Gio.MountOperationResult.HANDLED);
                 }
-            });
+            }, this);
         this._dialog.open();
     }
 
@@ -150,7 +149,7 @@ var ShellMountOperation = class {
             this._processesDialog = new ShellProcessesDialog();
             this._dialog = this._processesDialog;
 
-            this._dialogId = this._processesDialog.connect('response',
+            this._processesDialog.connectObject('response',
                 (object, choice) => {
                     if (choice == -1) {
                         this.mountOp.reply(Gio.MountOperationResult.ABORTED);
@@ -160,7 +159,7 @@ var ShellMountOperation = class {
                     }
 
                     this.close();
-                });
+                }, this);
             this._processesDialog.open();
         }
 
@@ -178,11 +177,7 @@ var ShellMountOperation = class {
     }
 
     borrowDialog() {
-        if (this._dialogId != 0) {
-            this._dialog.disconnect(this._dialogId);
-            this._dialogId = 0;
-        }
-
+        this._dialog?.disconnectObject(this);
         return this._dialog;
     }
 };
@@ -254,12 +249,18 @@ var ShellMountQuestionDialog = GObject.registerClass({
 });
 
 var ShellMountPasswordDialog = GObject.registerClass({
-    Signals: { 'response': { param_types: [GObject.TYPE_INT,
-                                           GObject.TYPE_STRING,
-                                           GObject.TYPE_BOOLEAN,
-                                           GObject.TYPE_BOOLEAN,
-                                           GObject.TYPE_BOOLEAN,
-                                           GObject.TYPE_UINT] } },
+    Signals: {
+        'response': {
+            param_types: [
+                GObject.TYPE_INT,
+                GObject.TYPE_STRING,
+                GObject.TYPE_BOOLEAN,
+                GObject.TYPE_BOOLEAN,
+                GObject.TYPE_BOOLEAN,
+                GObject.TYPE_UINT,
+            ],
+        },
+    },
 }, class ShellMountPasswordDialog extends ModalDialog.ModalDialog {
     _init(message, flags) {
         let strings = message.split('\n');
@@ -542,7 +543,6 @@ var GnomeShellMountOpHandler = class {
                                        Gio.BusNameOwnerFlags.REPLACE, null, null);
 
         this._dialog = null;
-        this._volumeMonitor = Gio.VolumeMonitor.get();
 
         this._ensureEmptyRequest();
     }
@@ -565,7 +565,7 @@ var GnomeShellMountOpHandler = class {
     _setCurrentRequest(invocation, id, type) {
         let oldId = this._currentId;
         let oldType = this._currentType;
-        let requestId = '%s@%s'.format(id, invocation.get_sender());
+        let requestId = `${id}@${invocation.get_sender()}`;
 
         this._clearCurrentRequest(Gio.MountOperationResult.UNHANDLED, {});
 

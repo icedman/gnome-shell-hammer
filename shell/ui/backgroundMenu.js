@@ -14,7 +14,7 @@ var BackgroundMenu = class BackgroundMenu extends PopupMenu.PopupMenu {
         this.addSettingsAction(_("Change Background…"), 'gnome-background-panel.desktop');
         this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this.addSettingsAction(_("Display Settings"), 'gnome-display-panel.desktop');
-        this.addSettingsAction(_("Settings"), 'gnome-control-center.desktop');
+        this.addSettingsAction(_('Settings'), 'org.gnome.Settings.desktop');
 
         this.actor.add_style_class_name('background-menu');
 
@@ -56,14 +56,12 @@ function addBackgroundMenu(actor, layoutManager) {
     });
     actor.add_action(clickAction);
 
-    let grabOpBeginId = global.display.connect('grab-op-begin', () => {
-        clickAction.release();
-    });
+    global.display.connectObject('grab-op-begin',
+        () => clickAction.release(), actor);
 
     actor.connect('destroy', () => {
         actor._backgroundMenu.destroy();
         actor._backgroundMenu = null;
         actor._backgroundManager = null;
-        global.display.disconnect(grabOpBeginId);
     });
 }

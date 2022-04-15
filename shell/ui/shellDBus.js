@@ -22,7 +22,7 @@ var GnomeShell = class {
         this._dbusImpl.export(Gio.DBus.session, '/org/gnome/Shell');
 
         this._senderChecker = new DBusSenderChecker([
-            'org.gnome.ControlCenter',
+            'org.gnome.Settings',
             'org.gnome.SettingsDaemon.MediaKeys',
         ]);
 
@@ -117,11 +117,13 @@ var GnomeShell = class {
         for (let param in params)
             params[param] = params[param].deep_unpack();
 
-        let { connector,
-              label,
-              level,
-              max_level: maxLevel,
-              icon: serializedIcon } = params;
+        const {
+            connector,
+            label,
+            level,
+            max_level: maxLevel,
+            icon: serializedIcon,
+        } = params;
 
         let monitorIndex = -1;
         if (connector) {
@@ -249,6 +251,19 @@ var GnomeShell = class {
             ungrabSucceeded &= this._ungrabAcceleratorForSender(actions[i], sender);
 
         invocation.return_value(GLib.Variant.new('(b)', [ungrabSucceeded]));
+    }
+
+    ScreenTransitionAsync(params, invocation) {
+        try {
+            this._senderChecker.checkInvocation(invocation);
+        } catch (e) {
+            invocation.return_gerror(e);
+            return;
+        }
+
+        Main.layoutManager.screenTransition.run();
+
+        invocation.return_value(null);
     }
 
     _emitAcceleratorActivated(action, device, timestamp) {

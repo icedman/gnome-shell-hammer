@@ -11,6 +11,14 @@ const Config = imports.misc.config;
 
 const DEFAULT_MODE = 'restrictive';
 
+const USER_SESSION_COMPONENTS = [
+    'polkitAgent', 'telepathyClient', 'keyring',
+    'autorunManager', 'automountManager',
+];
+
+if (Config.HAVE_NETWORKMANAGER)
+    USER_SESSION_COMPONENTS.push('networkAgent');
+
 const _modes = {
     'restrictive': {
         parentMode: null,
@@ -20,7 +28,6 @@ const _modes = {
         showCalendarEvents: false,
         showWelcomeDialog: false,
         allowSettings: false,
-        allowExtensions: false,
         allowScreencast: false,
         enabledExtensions: [],
         hasRunDialog: false,
@@ -74,7 +81,6 @@ const _modes = {
         showCalendarEvents: true,
         showWelcomeDialog: true,
         allowSettings: true,
-        allowExtensions: true,
         allowScreencast: true,
         hasRunDialog: true,
         hasWorkspaces: true,
@@ -84,16 +90,11 @@ const _modes = {
         isLocked: false,
         isPrimary: true,
         unlockDialog: imports.ui.unlockDialog.UnlockDialog,
-        components: Config.HAVE_NETWORKMANAGER
-            ? ['networkAgent', 'polkitAgent', 'telepathyClient',
-               'keyring', 'autorunManager', 'automountManager']
-            : ['polkitAgent', 'telepathyClient',
-               'keyring', 'autorunManager', 'automountManager'],
-
+        components: USER_SESSION_COMPONENTS,
         panel: {
             left: ['activities', 'appMenu'],
             center: ['dateMenu'],
-            right: ['dwellClick', 'a11y', 'keyboard', 'aggregateMenu'],
+            right: ['screenRecording', 'dwellClick', 'a11y', 'keyboard', 'aggregateMenu'],
         },
     },
 };

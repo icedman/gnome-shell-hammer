@@ -7,7 +7,7 @@ const PermissionStore = imports.misc.permissionStore;
 
 const WAYLAND_KEYBINDINGS_SCHEMA = 'org.gnome.mutter.wayland.keybindings';
 
-const APP_ALLOWLIST = ['gnome-control-center.desktop'];
+const APP_ALLOWLIST = ['org.gnome.Settings.desktop'];
 const APP_PERMISSIONS_TABLE = 'gnome';
 const APP_PERMISSIONS_ID = 'shortcuts-inhibitor';
 const GRANTED = 'GRANTED';
@@ -97,19 +97,23 @@ var InhibitShortcutsDialog = GObject.registerClass({
 
         this._dialog.contentLayout.add_child(content);
 
-        this._dialog.addButton({ label: _("Deny"),
-                                 action: () => {
-                                     this._saveToPermissionStore(DENIED);
-                                     this._emitResponse(DialogResponse.DENY);
-                                 },
-                                 key: Clutter.KEY_Escape });
+        this._dialog.addButton({
+            label: _('Deny'),
+            action: () => {
+                this._saveToPermissionStore(DENIED);
+                this._emitResponse(DialogResponse.DENY);
+            },
+            key: Clutter.KEY_Escape,
+        });
 
-        this._dialog.addButton({ label: _("Allow"),
-                                 action: () => {
-                                     this._saveToPermissionStore(GRANTED);
-                                     this._emitResponse(DialogResponse.ALLOW);
-                                 },
-                                 default: true });
+        this._dialog.addButton({
+            label: _('Allow'),
+            action: () => {
+                this._saveToPermissionStore(GRANTED);
+                this._emitResponse(DialogResponse.ALLOW);
+            },
+            default: true,
+        });
     }
 
     _emitResponse(response) {

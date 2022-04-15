@@ -68,10 +68,11 @@ var Client = class {
                 BOLT_DBUS_CLIENT_IFACE,
                 null);
         } catch (e) {
-            log('error creating bolt proxy: %s'.format(e.message));
+            log(`error creating bolt proxy: ${e.message}`);
             return;
         }
-        this._propsChangedId = this._proxy.connect('g-properties-changed', this._onPropertiesChanged.bind(this));
+        this._proxy.connectObject('g-properties-changed',
+            this._onPropertiesChanged.bind(this), this);
         this._deviceAddedId = this._proxy.connectSignal('DeviceAdded', this._onDeviceAdded.bind(this));
 
         this.probing = this._proxy.Probing;
@@ -102,7 +103,7 @@ var Client = class {
             return;
 
         this._proxy.disconnectSignal(this._deviceAddedId);
-        this._proxy.disconnect(this._propsChangedId);
+        this._proxy.disconnectObject(this);
         this._proxy = null;
     }
 
@@ -248,7 +249,7 @@ class Indicator extends PanelMenu.SystemIndicator {
         try {
             this._perm = await Polkit.Permission.new('org.freedesktop.bolt.enroll', null, null);
         } catch (e) {
-            log('Failed to get PolKit permission: %s'.format(e.toString()));
+            log(`Failed to get PolKit permission: ${e}`);
         }
     }
 
@@ -314,8 +315,7 @@ class Indicator extends PanelMenu.SystemIndicator {
         let auth = unlocked && allowed;
         policy[0] = auth;
 
-        log('thunderbolt: [%s] auto enrollment: %s (allowed: %s)'.format(
-            device.Name, auth ? 'yes' : 'no', allowed ? 'yes' : 'no'));
+        log(`thunderbolt: [${device.Name}] auto enrollment: ${auth ? 'yes' : 'no'} (allowed: ${allowed ? 'yes' : 'no'})`);
 
         if (auth)
             return; /* we are done */
