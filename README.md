@@ -10,29 +10,15 @@ To theme it a little bit with custom background picture and some minimalist styl
 
 Make sure to have your background / wallpaper saved at /usr/share/backgrounds/background.jpg
 
-# Dash-to-Dock
+# Dash-to-Dock-Lite
 
-If you use dash-to-dock use the version modified for gnome-40:
+My own dash-to-dock implementation. Less features that Dash-To-Dock - and so less likely to break at gnome updates. I also has an animation feature like the macOS dock.
 
-```sh
-git clone https://github.com/ewlsh/dash-to-dock
-git fetch --all
-git checkout ewlsh/gnome-40
-```
-
-And uncomment this line in `extrach.sh`
-
-```sh
-cat dash.css >> ./theme/gnome-shell.css
-```
-
-Note: use this only if the offical dash-to-dock release is still messed up under gnome-40.
+https://github.com/icedman/dash2dock-lite
 
 # gnome-40 three finger-swipe
 
-WARNING: This has been reported to have issues with the latest gnome-shell. Use the extension version instead.
-
-Three finger swipe to change workspace is a new addition in gnome-40. The switching animation is now smooth just like the way it is with macOS. However, many use four fingers to swipe between workspaces.
+Three finger swipe to change workspace is a new addition in gnome-40. The switching animation is now smooth just like the way it is with macOS. However, I want to use four fingers to swipe between workspaces, not three. And as of gnome-42, there is no way to reconfigure the shell.
 
 To switch back to four fingers simply run:
 
@@ -43,14 +29,9 @@ Note:
 The threefingerwindowmove@do.sch.dev.gmail.com is pretty useful. Drag windows with three fingers.
 
 # warning
-These scripts are tested only under ArchLinux. Make sure you know how to switch to another tty and revert changes or reinstall gnome-shell in case something is messed up.
 
+These scripts modify the gnome-shell libraries. These are also tested only under ArchLinux. Make sure you know how to switch to another tty and revert changes or reinstall gnome-shell in case something is messed up.
 
 # extension
-There is an extension version for the more prudent users. Just copy gnome-extension to:
 
-```sh
-~/.local/share/gnome-shell/extensions/gnome-shell-hammer@icedman.github.com
-``` 
-
-Enable. Logout.
+gnome-shell-hammer non-intrusive or extension version is broken as of gnome-42
