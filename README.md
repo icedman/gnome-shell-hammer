@@ -16,7 +16,7 @@ My own dash-to-dock implementation. Less features that Dash-To-Dock - and so les
 
 https://github.com/icedman/dash2dock-lite
 
-# Dash2Dock-Lite
+# Dash Animator
 
 My other extension which adds animation to Dash-to-Dock.
 
