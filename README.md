@@ -10,11 +10,17 @@ To theme it a little bit with custom background picture and some minimalist styl
 
 Make sure to have your background / wallpaper saved at /usr/share/backgrounds/background.jpg
 
-# Dash-to-Dock-Lite
+# Dash2Dock-Lite
 
 My own dash-to-dock implementation. Less features that Dash-To-Dock - and so less likely to break at gnome updates. I also has an animation feature like the macOS dock.
 
 https://github.com/icedman/dash2dock-lite
+
+# Dash2Dock-Lite
+
+My other extension which adds animation to Dash-to-Dock.
+
+https://github.com/icedman/dash-animator
 
 # gnome-40 three finger-swipe
 
