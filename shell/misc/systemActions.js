@@ -224,6 +224,34 @@ const SystemActions = GObject.registerClass({
         return this._actions.get(LOCK_ORIENTATION_ACTION_ID).iconName;
     }
 
+    _lightdmLoginSession() {
+        try {
+            let seat = GLib.getenv("XDG_SEAT_PATH");
+            let result = Gio.DBus.system.call_sync('org.freedesktop.DisplayManager',
+                                                   seat,
+                                                   'org.freedesktop.DisplayManager.Seat',
+                                                   'SwitchToGreeter', null, null,
+                                                   Gio.DBusCallFlags.NONE,
+                                                   -1, null);
+            return result;
+        } catch(e) {
+            return false;
+        }
+    }
+
+    _sensorProxyAppeared() {
+        this._sensorProxy = new SensorProxy(Gio.DBus.system, SENSOR_BUS_NAME, SENSOR_OBJECT_PATH,
+            (proxy, error)  => {
+                if (error) {
+                    log(error.message);
+                    return;
+                }
+                this._sensorProxy.connect('g-properties-changed',
+                                          () => { this._updateOrientationLock(); });
+                this._updateOrientationLock();
+            });
+    }
+
     _updateOrientationLock() {
         const available = this._monitorManager.get_panel_orientation_managed();
 
@@ -325,7 +353,7 @@ const SystemActions = GObject.registerClass({
     _updateLockScreen() {
         let showLock = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
         let allowLockScreen = !this._lockdownSettings.get_boolean(DISABLE_LOCK_SCREEN_KEY);
-        this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock && allowLockScreen && LoginManager.canLock();
+        this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock && allowLockScreen;
         this.notify('can-lock-screen');
     }
 
@@ -415,20 +443,25 @@ const SystemActions = GObject.registerClass({
         if (!this._actions.get(LOCK_SCREEN_ACTION_ID).available)
             throw new Error('The lock-screen action is not available!');
 
-        Main.screenShield.lock(true);
+        if (Main.screenShield)
+            Main.screenShield.lock(true);
+        else
+            this._lightdmLoginSession();
     }
 
     activateSwitchUser() {
         if (!this._actions.get(SWITCH_USER_ACTION_ID).available)
             throw new Error('The switch-user action is not available!');
 
-        if (Main.screenShield)
+        if (Main.screenShield) {
             Main.screenShield.lock(false);
 
-        Clutter.threads_add_repaint_func_full(Clutter.RepaintFlags.POST_PAINT, () => {
-            Gdm.goto_login_session_sync(null);
-            return false;
-        });
+            Clutter.threads_add_repaint_func_full(Clutter.RepaintFlags.POST_PAINT, () => {
+                Gdm.goto_login_session_sync(null);
+                return false;
+            });
+        } else
+            this._lightdmLoginSession();
     }
 
     activateLogout() {

@@ -650,10 +650,14 @@ var LayoutManager = GObject.registerClass({
             // This helps to prevent us from running the animation
             // when the system is bogged down
             const id = GLib.idle_add(GLib.PRIORITY_LOW, () => {
-                this._systemBackground.show();
-                global.stage.show();
-                this._prepareStartupAnimation();
-                return GLib.SOURCE_REMOVE;
+                if (this.primaryMonitor) {
+                    this._systemBackground.show();
+                    global.stage.show();
+                    this._prepareStartupAnimation();
+                    return GLib.SOURCE_REMOVE;
+                } else {
+                    return GLib.SOURCE_CONTINUE;
+                }
             });
             GLib.Source.set_name_by_id(id, '[gnome-shell] Startup Animation');
         });
@@ -736,14 +740,14 @@ var LayoutManager = GObject.registerClass({
             translation_y: 0,
             duration: STARTUP_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._startupAnimationComplete(),
+            onStopped: () => this._startupAnimationComplete(),
         });
     }
 
     _startupAnimationSession() {
-        const onComplete = () => this._startupAnimationComplete();
+        const onStopped = () => this._startupAnimationComplete();
         if (Main.sessionMode.hasOverview) {
-            Main.overview.runStartupAnimation(onComplete);
+            Main.overview.runStartupAnimation(onStopped);
         } else {
             this.uiGroup.ease({
                 scale_x: 1,
@@ -751,7 +755,7 @@ var LayoutManager = GObject.registerClass({
                 opacity: 255,
                 duration: STARTUP_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onComplete,
+                onStopped,
             });
         }
     }
@@ -942,20 +946,36 @@ var LayoutManager = GObject.registerClass({
         return ws.get_work_area_for_monitor(monitorIndex);
     }
 
+    _findIndexForRect(x, y, width, height) {
+        let rect = new Meta.Rectangle({
+            x: Math.floor(x),
+            y: Math.floor(y),
+            width: Math.ceil(x + width) - Math.floor(x),
+            height: Math.ceil(y + height) - Math.floor(y)
+        });
+        return global.display.get_monitor_index_for_rect(rect);
+    }
+
     // This call guarantees that we return some monitor to simplify usage of it
     // In practice all tracked actors should be visible on some monitor anyway
     findIndexForActor(actor) {
         let [x, y] = actor.get_transformed_position();
         let [w, h] = actor.get_transformed_size();
-        let rect = new Meta.Rectangle({ x, y, width: w, height: h });
-        return global.display.get_monitor_index_for_rect(rect);
+        return this._findIndexForRect(x, y, w, h);
     }
 
-    findMonitorForActor(actor) {
-        let index = this.findIndexForActor(actor);
+    _findMonitorForIndex(index) {
         if (index >= 0 && index < this.monitors.length)
             return this.monitors[index];
         return null;
+    }
+
+    findMonitorForActor(actor) {
+        return this._findMonitorForIndex(this.findIndexForActor(actor));
+    }
+
+    findMonitorForPoint(x, y) {
+        return this._findMonitorForIndex(this._findIndexForRect(x, y, 1, 1));
     }
 
     _queueUpdateRegions() {
@@ -1001,6 +1021,7 @@ var LayoutManager = GObject.registerClass({
             if (!(actorData.affectsInputRegion && wantsInputRegion) && !actorData.affectsStruts)
                 continue;
 
+            actorData.actor.get_allocation_box();
             let [x, y] = actorData.actor.get_transformed_position();
             let [w, h] = actorData.actor.get_transformed_size();
             x = Math.round(x);

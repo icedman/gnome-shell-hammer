@@ -218,7 +218,9 @@ var SearchResultsBase = GObject.registerClass({
             this._cancellable.cancel();
             this._cancellable.reset();
 
+            this.provider.resultsMetasInProgress = true;
             this.provider.getResultMetas(metasNeeded, metas => {
+                this.provider.resultsMetasInProgress = this._cancellable.is_cancelled();
                 if (this._cancellable.is_cancelled()) {
                     if (metas.length > 0)
                         log(`Search provider ${this.provider.id} returned results after the request was canceled`);
@@ -597,6 +599,10 @@ var SearchResultsView = GObject.registerClass({
 
         this._searchTimeoutId = 0;
         this._cancellable = new Gio.Cancellable();
+        this._searchCancelCancellable = new Gio.Cancellable();
+        this._cancellable.connect(() => {
+            this._cancelSearchProviderRequest();
+        });
 
         this._registerProvider(new AppDisplay.AppSearchProvider());
 
@@ -651,11 +657,32 @@ var SearchResultsView = GObject.registerClass({
         }
     }
 
+    _cancelSearchProviderRequest() {
+        if (this._terms.length != 0 || this._searchCancelTimeoutId)
+            return;
+
+        this._searchCancelTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            this._providers.forEach(provider => {
+                if (provider.isRemoteProvider &&
+                    (provider.searchInProgress || provider.resultsMetasInProgress)) {
+                    provider.XUbuntuCancel(this._searchCancelCancellable, () => {
+                        provider.searchInProgress = false;
+                        provider.resultsMetasInProgress = false;
+                    });
+                }
+            });
+
+            delete this._searchCancelTimeoutId;
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     _reset() {
         this._terms = [];
         this._results = {};
         this._clearDisplay();
         this._clearSearchTimeout();
+        this._cancelSearchProviderRequest();
         this._defaultResult = null;
         this._startingSearch = false;
 
@@ -722,6 +749,13 @@ var SearchResultsView = GObject.registerClass({
         let isSubSearch = false;
         if (this._terms.length > 0)
             isSubSearch = searchString.indexOf(previousSearchString) == 0;
+
+        this._searchCancelCancellable.cancel();
+        this._searchCancelCancellable.reset();
+        if (this._searchCancelTimeoutId) {
+            GLib.source_remove(this._searchCancelTimeoutId);
+            delete this._searchCancelTimeoutId;
+        }
 
         this._terms = terms;
         this._isSubSearch = isSubSearch;

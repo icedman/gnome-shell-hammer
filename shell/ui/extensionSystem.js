@@ -4,6 +4,7 @@
 const { GLib, Gio, GObject, Shell, St } = imports.gi;
 const Signals = imports.signals;
 
+const Desktop = imports.misc.desktop;
 const ExtensionDownloader = imports.ui.extensionDownloader;
 const ExtensionUtils = imports.misc.extensionUtils;
 const FileUtils = imports.misc.fileUtils;
@@ -310,11 +311,29 @@ var ExtensionManager = class {
             throw new Error(`Failed to parse metadata.json: ${e}`);
         }
 
-        let requiredProperties = ['uuid', 'name', 'description', 'shell-version'];
+        const requiredProperties = [{
+            prop: 'uuid',
+            typeName: 'string',
+        }, {
+            prop: 'name',
+            typeName: 'string',
+        }, {
+            prop: 'description',
+            typeName: 'string',
+        }, {
+            prop: 'shell-version',
+            typeName: 'string array',
+            typeCheck: v => Array.isArray(v) && v.length > 0 && v.every(e => typeof e === 'string'),
+        }];
         for (let i = 0; i < requiredProperties.length; i++) {
-            let prop = requiredProperties[i];
+            const {
+                prop, typeName, typeCheck = v => typeof v === typeName,
+            } = requiredProperties[i];
+
             if (!meta[prop])
                 throw new Error(`missing "${prop}" property in metadata.json`);
+            if (!typeCheck(meta[prop]))
+                throw new Error(`property "${prop}" is not of type ${typeName}`);
         }
 
         if (uuid != meta.uuid)
@@ -410,6 +429,10 @@ var ExtensionManager = class {
         }
 
         this.loadExtension(newExtension);
+    }
+
+    isModeExtension(uuid) {
+        return this._getModeExtensions().indexOf(uuid) !== -1;
     }
 
     _callExtensionInit(uuid) {
@@ -602,6 +625,10 @@ var ExtensionManager = class {
             let type = dir.has_prefix(perUserDir)
                 ? ExtensionType.PER_USER
                 : ExtensionType.SYSTEM;
+            if (Desktop.is("ubuntu") && this.isModeExtension(uuid) && type === ExtensionType.PER_USER) {
+                log(`Found user extension ${uuid}, but not loading from ${dir.get_path()} directory as part of session mode.`);
+                return;
+            }
             try {
                 extension = this.createExtensionObject(uuid, dir, type);
             } catch (e) {

@@ -21,11 +21,18 @@ const { adjustAnimationTime } = imports.ui.environment;
 const SCREENSAVER_SCHEMA = 'org.gnome.desktop.screensaver';
 const LOCK_ENABLED_KEY = 'lock-enabled';
 const LOCK_DELAY_KEY = 'lock-delay';
+const SUSPEND_LOCK_ENABLED_KEY = 'ubuntu-lock-on-suspend';
 
 const LOCKDOWN_SCHEMA = 'org.gnome.desktop.lockdown';
 const DISABLE_LOCK_KEY = 'disable-lock-screen';
 
 const LOCKED_STATE_STR = 'screenShield.locked';
+
+const LOGIN_SCREEN_SCHEMA = 'com.ubuntu.login-screen';
+const LOGIN_SCREEN_BACKGROUND_COLOR_KEY = 'background-color';
+const LOGIN_SCREEN_BACKGROUND_PICTURE_URI_KEY = 'background-picture-uri';
+const LOGIN_SCREEN_BACKGROUND_REPEAT_KEY = 'background-repeat';
+const LOGIN_SCREEN_BACKGROUND_SIZE_KEY = 'background-size';
 
 // ScreenShield animation time
 // - STANDARD_FADE_TIME is used when the session goes idle
@@ -115,9 +122,20 @@ var ScreenShield = class {
 
         this._settings = new Gio.Settings({ schema_id: SCREENSAVER_SCHEMA });
         this._settings.connect(`changed::${LOCK_ENABLED_KEY}`, this._syncInhibitor.bind(this));
+        this._settings.connect(`changed::${SUSPEND_LOCK_ENABLED_KEY}`, this._syncInhibitor.bind(this));
 
         this._lockSettings = new Gio.Settings({ schema_id: LOCKDOWN_SCHEMA });
         this._lockSettings.connect(`changed::${DISABLE_LOCK_KEY}`, this._syncInhibitor.bind(this));
+
+        this._loginScreenSettings = new Gio.Settings({ schema_id: LOGIN_SCREEN_SCHEMA });
+        [
+            LOGIN_SCREEN_BACKGROUND_COLOR_KEY,
+            LOGIN_SCREEN_BACKGROUND_PICTURE_URI_KEY,
+            LOGIN_SCREEN_BACKGROUND_REPEAT_KEY,
+            LOGIN_SCREEN_BACKGROUND_SIZE_KEY,
+        ].forEach(schema => this._loginScreenSettings.connect(`changed::${schema}`,
+            () => this._refreshBackground()));
+        this._refreshBackground();
 
         this._isModal = false;
         this._isGreeter = false;
@@ -196,7 +214,7 @@ var ScreenShield = class {
         if (this._isModal)
             return true;
 
-        let grab = Main.pushModal(this.actor, { actionMode: Shell.ActionMode.LOCK_SCREEN });
+        let grab = Main.pushModal(Main.uiGroup, { actionMode: Shell.ActionMode.LOCK_SCREEN });
 
         // We expect at least a keyboard grab here
         this._isModal = (grab.get_seat_state() & Clutter.GrabState.KEYBOARD) !== 0;
@@ -208,8 +226,30 @@ var ScreenShield = class {
         return this._isModal;
     }
 
+    _refreshBackground() {
+        const inlineStyle = [];
+
+        const getSetting = s => this._loginScreenSettings.get_string(s);
+        const backgroundColor = getSetting(LOGIN_SCREEN_BACKGROUND_COLOR_KEY);
+        const backgroundPictureUri = getSetting(LOGIN_SCREEN_BACKGROUND_PICTURE_URI_KEY);
+        const backgroundRepeat = getSetting(LOGIN_SCREEN_BACKGROUND_REPEAT_KEY);
+        const backgroundSize = getSetting(LOGIN_SCREEN_BACKGROUND_SIZE_KEY);
+
+        if (backgroundColor)
+            inlineStyle.push(`background-color: ${backgroundColor}`);
+        if (backgroundPictureUri)
+            inlineStyle.push(`background-image: url("${backgroundPictureUri}")`);
+        if (backgroundRepeat !== 'default')
+            inlineStyle.push(`background-repeat: ${backgroundRepeat}`);
+        if (backgroundSize !== 'default')
+            inlineStyle.push(`background-size: ${backgroundSize}`);
+
+        this._lockDialogGroup.set_style(inlineStyle.join('; '));
+    }
+
     async _syncInhibitor() {
-        const lockEnabled = this._settings.get_boolean(LOCK_ENABLED_KEY);
+        const lockEnabled = this._settings.get_boolean(LOCK_ENABLED_KEY) ||
+                            this._settings.get_boolean(SUSPEND_LOCK_ENABLED_KEY);
         const lockLocked = this._lockSettings.get_boolean(DISABLE_LOCK_KEY);
         const inhibit = !!this._loginSession && this._loginSession.Active &&
                          !this._isActive && lockEnabled && !lockLocked &&
@@ -240,7 +280,7 @@ var ScreenShield = class {
 
     _prepareForSleep(loginManager, aboutToSuspend) {
         if (aboutToSuspend) {
-            if (this._settings.get_boolean(LOCK_ENABLED_KEY))
+            if (this._settings.get_boolean(SUSPEND_LOCK_ENABLED_KEY))
                 this.lock(true);
         } else {
             this._wakeUpScreen();

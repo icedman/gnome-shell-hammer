@@ -1259,7 +1259,11 @@ var LoginDialog = GObject.registerClass({
                                         { sortGroup: CtrlAltTab.SortGroup.MIDDLE });
         this.activate();
 
-        this.opacity = 0;
+        // Clutter doesn't yet fully support invisible parents with forced
+        // visible children and will make everything invisible (flicker) on
+        // the first frame if we start at 0. So we start at 1 instead...
+        this.opacity = 1;
+        this._logoBin.set_opacity_override(255);
 
         this._grab = Main.pushModal(global.stage, { actionMode: Shell.ActionMode.LOGIN_SCREEN });
 
@@ -1267,6 +1271,7 @@ var LoginDialog = GObject.registerClass({
             opacity: 255,
             duration: 1000,
             mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onComplete: () => { this._logoBin.set_opacity_override(-1); },
         });
 
         return true;

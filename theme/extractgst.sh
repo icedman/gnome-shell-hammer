@@ -2,7 +2,7 @@
 
 set +x
 
-gst=/usr/share/gnome-shell/gnome-shell-theme.gresource
+gst=/usr/share/themes/Yaru/gnome-shell/gnome-shell-theme.gresource
 workdir=./
 
 for r in `gresource list $gst`; do
@@ -18,10 +18,10 @@ done
 
 sh generate.xml.sh > ./theme/gnome-shell-theme.gresource.xml
 
-sed '/custom/,$d' ./theme/gnome-shell.css > ./gnome-shell.css.orig
+sed '/custom/,$d' ./theme/gdm.css > ./gdm.css.orig
 
-cp ./gnome-shell.css.orig ./theme/gnome-shell.css
-cat custom.css >> ./theme/gnome-shell.css
-# cat dash.css >> ./theme/gnome-shell.css
+cp ./gdm.css.orig ./theme/gdm.css
+cat custom.css >> ./theme/gdm.css
+# cat dash.css >> ./theme/gdm.css
 
 # cp install.sh ./theme/

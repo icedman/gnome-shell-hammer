@@ -92,6 +92,23 @@ function launchSettingsPanel(panel, ...args) {
     };
     try {
         Gio.DBus.session.call(
+            'org.gnome.ControlCenter',
+            '/org/gnome/ControlCenter',
+            'org.freedesktop.Application',
+            'ActivateAction',
+            new GLib.Variant('(sava{sv})',
+                ['launch-panel', [param], platformData]),
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null);
+        return;
+    } catch (e) {
+        log(`Failed to launch Settings panel: ${e.message}, trying new name...`);
+    }
+
+    try {
+        Gio.DBus.session.call(
             'org.gnome.Settings',
             '/org/gnome/Settings',
             'org.freedesktop.Application',
@@ -597,7 +614,7 @@ var NMDeviceModem = class extends NMConnectionDevice {
     }
 
     _getMenuIcon() {
-        if (!this._client.wwan_enabled)
+        if (!this._device.active_connection)
             return 'network-cellular-disabled-symbolic';
 
         return this.getIndicatorIcon();

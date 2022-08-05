@@ -32,7 +32,7 @@ const DURATION_MULTIPLIER = 3;
 const ANIMATION_BASE_VELOCITY = 0.002;
 const EPSILON = 0.005;
 
-const GESTURE_FINGER_COUNT = 3;
+const GESTURE_FINGER_COUNT = 4;
 
 const State = {
     NONE: 0,

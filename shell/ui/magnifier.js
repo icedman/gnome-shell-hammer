@@ -45,6 +45,8 @@ var MouseSpriteContent = GObject.registerClass({
 }, class MouseSpriteContent extends GObject.Object {
     _init() {
         super._init();
+        this._scale = 1.0;
+        this._monitorScale = 1.0;
         this._texture = null;
     }
 
@@ -52,7 +54,10 @@ var MouseSpriteContent = GObject.registerClass({
         if (!this._texture)
             return [false, 0, 0];
 
-        return [true, this._texture.get_width(), this._texture.get_height()];
+        let width = this._texture.get_width() / this._scale;
+        let height = this._texture.get_height() / this._scale;
+
+        return [true, width, height];
     }
 
     vfunc_paint_content(actor, node, _paintContext) {
@@ -69,6 +74,29 @@ var MouseSpriteContent = GObject.registerClass({
         textureNode.add_rectangle(actor.get_content_box());
     }
 
+    _textureScale() {
+        if (!this._texture)
+            return 1;
+
+        /* This is a workaround to guess the sprite scale; while it works file
+         * in normal scenarios, it's not guaranteed to work in all the cases,
+         * and so we should actually add an API to mutter that will allow us
+         * to know the real spirte texture scaling in order to adapt it to the
+         * wanted one. */
+        let avgSize = (this._texture.get_width() + this._texture.get_height()) / 2;
+        return Math.max (1, Math.floor (avgSize / Meta.prefs_get_cursor_size() + .1));
+    }
+
+    _recomputeScale() {
+        let scale = this._textureScale() / this._monitorScale;
+
+        if (this._scale != scale) {
+            this._scale = scale;
+            return true;
+        }
+        return false;
+    }
+
     get texture() {
         return this._texture;
     }
@@ -83,7 +111,19 @@ var MouseSpriteContent = GObject.registerClass({
 
         if (!oldTexture || !coglTexture ||
             oldTexture.get_width() != coglTexture.get_width() ||
-            oldTexture.get_height() != coglTexture.get_height())
+            oldTexture.get_height() != coglTexture.get_height()) {
+            this._recomputeScale();
+            this.invalidate_size();
+        }
+    }
+
+    get scale() {
+        return this._scale;
+    }
+
+    set monitorScale(monitorScale) {
+        this._monitorScale = monitorScale;
+        if (this._recomputeScale())
             this.invalidate_size();
     }
 });
@@ -110,11 +150,20 @@ var Magnifier = class Magnifier {
         this._settingsInit(aZoomRegion);
         aZoomRegion.scrollContentsTo(this.xMouse, this.yMouse);
 
+        this._updateContentScale();
+
         St.Settings.get().connect('notify::magnifier-active', () => {
             this.setActive(St.Settings.get().magnifier_active);
         });
 
         this.setActive(St.Settings.get().magnifier_active);
+    }
+
+    _updateContentScale() {
+        let monitor = Main.layoutManager.findMonitorForPoint(this.xMouse,
+                                                             this.yMouse);
+        this._mouseSprite.content.monitorScale = monitor ?
+                                                 monitor.geometry_scale : 1;
     }
 
     /**
@@ -126,7 +175,13 @@ var Magnifier = class Magnifier {
 
         if (seat.is_unfocus_inhibited())
             seat.uninhibit_unfocus();
-        this._cursorTracker.set_pointer_visible(true);
+
+        if (this._cursorVisibilityChangedId) {
+            this._cursorTracker.disconnect(this._cursorVisibilityChangedId);
+            delete this._cursorVisibilityChangedId;
+
+            this._cursorTracker.set_pointer_visible(true);
+        }
     }
 
     /**
@@ -138,7 +193,14 @@ var Magnifier = class Magnifier {
 
         if (!seat.is_unfocus_inhibited())
             seat.inhibit_unfocus();
-        this._cursorTracker.set_pointer_visible(false);
+
+        if (!this._cursorVisibilityChangedId) {
+            this._cursorTracker.set_pointer_visible(false);
+            this._cursorVisibilityChangedId = this._cursorTracker.connect('visibility-changed', () => {
+                if (this._cursorTracker.get_pointer_visible())
+                    this._cursorTracker.set_pointer_visible(false);
+            });
+        }
     }
 
     /**
@@ -202,6 +264,8 @@ var Magnifier = class Magnifier {
         if (!this._pointerWatch) {
             let interval = 1000 / 60;
             this._pointerWatch = PointerWatcher.getPointerWatcher().addWatch(interval, this.scrollToMousePos.bind(this));
+
+            this.scrollToMousePos();
         }
     }
 
@@ -237,6 +301,8 @@ var Magnifier = class Magnifier {
 
         this.xMouse = xMouse;
         this.yMouse = yMouse;
+
+        this._updateContentScale();
 
         let sysMouseOverAny = false;
         this._zoomRegions.forEach(zoomRegion => {
@@ -789,22 +855,80 @@ var ZoomRegion = class ZoomRegion {
         }
     }
 
+    _convertExtentsToScreenSpace(accessible, extents) {
+        const toplevelWindowTypes = new Set([
+            Atspi.Role.FRAME,
+            Atspi.Role.DIALOG,
+            Atspi.Role.WINDOW,
+        ]);
+
+        try {
+            let app = null;
+            let parentWindow = null;
+            let iter = accessible;
+            while (iter) {
+                if (iter.get_role() === Atspi.Role.APPLICATION) {
+                    app = iter;
+                    /* This is the last Accessible we are interested in */
+                    break;
+                } else if (toplevelWindowTypes.has(iter.get_role())) {
+                    parentWindow = iter;
+                }
+                iter = iter.get_parent();
+            }
+
+            /* We don't want to translate our own events to the focus window.
+             * They are also already scaled by clutter before being sent, so
+             * we don't need to do that here either. */
+            if (app && app.get_name() === 'gnome-shell')
+                return extents;
+
+            /* Only events from the focused widget of the focused window. Some
+             * widgets seem to claim to have focus when the window does not so
+             * check both. */
+            const windowActive = parentWindow &&
+                parentWindow.get_state_set().contains(Atspi.StateType.ACTIVE);
+            const accessibleFocused =
+                accessible.get_state_set().contains(Atspi.StateType.FOCUSED);
+            if (!windowActive || !accessibleFocused)
+                return null;
+        } catch (e) {
+            throw new Error(`Failed to validate parent window: ${e}`);
+        }
+
+        const focusWindowRect = global.display.focus_window?.get_frame_rect();
+        if (!focusWindowRect)
+            return null;
+
+        const scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+        const screenSpaceExtents = new Atspi.Rect({
+            x: focusWindowRect.x + (scaleFactor * extents.x),
+            y: focusWindowRect.y + (scaleFactor * extents.y),
+            width: scaleFactor * extents.width,
+            height: scaleFactor * extents.height,
+        });
+
+        return screenSpaceExtents;
+    }
+
     _updateFocus(caller, event) {
         let component = event.source.get_component_iface();
         if (!component || event.detail1 != 1)
             return;
         let extents;
         try {
-            extents = component.get_extents(Atspi.CoordType.SCREEN);
+            extents = component.get_extents(Atspi.CoordType.WINDOW);
+            extents = this._convertExtentsToScreenSpace(event.source, extents);
+            if (!extents)
+                return;
         } catch (e) {
             log(`Failed to read extents of focused component: ${e.message}`);
             return;
         }
 
-        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
         const [xFocus, yFocus] = [
-            (extents.x + (extents.width / 2)) * scaleFactor,
-            (extents.y + (extents.height / 2)) * scaleFactor,
+            extents.x + (extents.width / 2),
+            extents.y + (extents.height / 2),
         ];
 
         if (this._xFocus !== xFocus || this._yFocus !== yFocus) {
@@ -819,14 +943,17 @@ var ZoomRegion = class ZoomRegion {
             return;
         let extents;
         try {
-            extents = text.get_character_extents(text.get_caret_offset(), 0);
+            extents = text.get_character_extents(text.get_caret_offset(),
+                Atspi.CoordType.WINDOW);
+            extents = this._convertExtentsToScreenSpace(text, extents);
+            if (!extents)
+                return;
         } catch (e) {
             log(`Failed to read extents of text caret: ${e.message}`);
             return;
         }
 
-        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-        let [xCaret, yCaret] = [extents.x * scaleFactor, extents.y * scaleFactor];
+        const [xCaret, yCaret] = [extents.x, extents.y];
 
         // Ignore event(s) if the caret size is none (0x0). This happens a lot if
         // the cursor offset can't be translated into a location. This is a work

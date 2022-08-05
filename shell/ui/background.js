@@ -333,6 +333,8 @@ var Background = GObject.registerClass({
             return;
 
         this.isLoaded = true;
+        if (this._cancellable?.is_cancelled())
+            return;
 
         let id = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             this.emit('loaded');
@@ -492,7 +494,7 @@ var Background = GObject.registerClass({
                 Gio.FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
                 Gio.FileQueryInfoFlags.NONE,
                 0,
-                null);
+                this._cancellable);
         } catch (e) {
             this._setLoaded();
             return;
@@ -527,7 +529,20 @@ var SystemBackground = GObject.registerClass({
     _init() {
         if (_systemBackground == null) {
             _systemBackground = new Meta.Background({ meta_display: global.display });
-            _systemBackground.set_color(DEFAULT_BACKGROUND_COLOR);
+
+            let backgroundColor = DEFAULT_BACKGROUND_COLOR;
+            if (imports.misc.desktop.is("ubuntu")) {
+                const loginSettings = new Gio.Settings({ schema_id: 'com.ubuntu.login-screen' });
+                const bgColor = loginSettings.get_string('background-color');
+                const dummyBgActor = new imports.gi.St.Widget({ name: 'lockDialogGroup' });
+                if (bgColor)
+                    dummyBgActor.set_style(`background-color: ${bgColor};`);
+                Main.uiGroup.add_actor(dummyBgActor);
+                backgroundColor = dummyBgActor.get_theme_node().get_background_color();
+                dummyBgActor.destroy();
+            }
+
+            _systemBackground.set_color(backgroundColor);
         }
 
         super._init({

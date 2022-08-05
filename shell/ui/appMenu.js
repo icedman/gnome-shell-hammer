@@ -152,9 +152,10 @@ var AppMenu = class AppMenu extends PopupMenu.PopupMenu {
             return;
 
         const { id } = this._app;
+        const isUbuntu = imports.misc.desktop.is('ubuntu');
         this._toggleFavoriteItem.label.text = this._appFavorites.isFavorite(id)
-            ? _('Unpin')
-            : _('Pin to Dash');
+            ? (isUbuntu ? _('Remove from Favorites') : _('Unpin'))
+            : (isUbuntu ? _('Add to Favorites') : _('Pin to Dash'));
     }
 
     _updateGpuItem() {

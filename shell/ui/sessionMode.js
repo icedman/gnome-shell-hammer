@@ -24,11 +24,13 @@ const _modes = {
         parentMode: null,
         stylesheetName: 'gnome-shell.css',
         themeResourceName: 'gnome-shell-theme.gresource',
+        iconsResourceName: 'gnome-shell-icons.gresource',
         hasOverview: false,
         showCalendarEvents: false,
         showWelcomeDialog: false,
         allowSettings: false,
         allowScreencast: false,
+        debugFlags: [],
         enabledExtensions: [],
         hasRunDialog: false,
         hasWorkspaces: false,
@@ -50,6 +52,8 @@ const _modes = {
 
     'gdm': {
         hasNotifications: true,
+        stylesheetName: 'gdm.css',
+        themeResourceName: 'gdm-theme.gresource',
         isGreeter: true,
         isPrimary: true,
         unlockDialog: imports.gdm.loginDialog.LoginDialog,

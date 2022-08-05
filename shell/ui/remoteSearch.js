@@ -26,6 +26,7 @@ const SearchProviderIface = `
 <method name="ActivateResult">
     <arg type="s" direction="in" />
 </method>
+<method name="XUbuntuCancel" />
 </interface>
 </node>`;
 
@@ -54,6 +55,7 @@ const SearchProvider2Iface = `
     <arg type="as" direction="in" />
     <arg type="u" direction="in" />
 </method>
+<method name="XUbuntuCancel" />
 </interface>
 </node>`;
 
@@ -140,7 +142,7 @@ function loadRemoteSearchProviders(searchSettings, callback) {
     let sortOrder = searchSettings.get_strv('sort-order');
 
     // Special case gnome-control-center to be always active and always first
-    sortOrder.unshift('org.gnome.Settings.desktop');
+    sortOrder.unshift('gnome-control-center.desktop');
 
     const disabled = searchSettings.get_strv('disabled');
     const enabled = searchSettings.get_strv('enabled');
@@ -308,6 +310,19 @@ var RemoteSearchProvider = class {
                                             this._getResultMetasFinished(results, error, callback);
                                         },
                                         cancellable);
+    }
+
+    XUbuntuCancel(cancellable, callback) {
+        this.proxy.XUbuntuCancelRemote((results, error) => {
+                if (error &&
+                    !error.matches(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD) &&
+                    !error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                    log('Received error from DBus search provider %s during XUbuntuCancel: %s'.format(this.id, String(error)));
+                } else if (callback && !error) {
+                    callback();
+                }
+            },
+            cancellable);
     }
 
     activateResult(id) {

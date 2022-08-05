@@ -219,7 +219,7 @@ class EventsSection extends St.Button {
                 /* Translators: Shown in calendar event list as the start/end of events
                  * that only show day and month
                  */
-                format = T_('%m/%d');
+                format = T_(N_('%m/%d'));
             else
                 format = '%x';
 
@@ -382,13 +382,9 @@ class WorldClocksSection extends St.Button {
                 this._locations.push({ location: l });
         }
 
-        const unixtime = GLib.DateTime.new_now_local().to_unix();
         this._locations.sort((a, b) => {
-            const tzA = a.location.get_timezone();
-            const tzB = b.location.get_timezone();
-            const intA = tzA.find_interval(GLib.TimeType.STANDARD, unixtime);
-            const intB = tzB.find_interval(GLib.TimeType.STANDARD, unixtime);
-            return tzA.get_offset(intA) - tzB.get_offset(intB);
+            return a.location.get_timezone().get_offset() -
+                   b.location.get_timezone().get_offset();
         });
 
         let layout = this._grid.layout_manager;
@@ -400,7 +396,10 @@ class WorldClocksSection extends St.Button {
             x_align: Clutter.ActorAlign.START,
             text: title,
         });
-        layout.attach(header, 0, 0, 2, 1);
+        if (this._grid.text_direction === Clutter.TextDirection.RTL)
+            layout.attach(header, 2, 0, 1, 1);
+        else
+            layout.attach(header, 0, 0, 2, 1);
         this.label_actor = header;
 
         for (let i = 0; i < this._locations.length; i++) {
@@ -415,7 +414,10 @@ class WorldClocksSection extends St.Button {
                 x_expand: true,
             });
 
-            let time = new St.Label({ style_class: 'world-clocks-time' });
+            let time = new St.Label({
+                style_class: 'world-clocks-time',
+                x_align: Clutter.ActorAlign.END,
+            });
 
             const tz = new St.Label({
                 style_class: 'world-clocks-timezone',
@@ -463,11 +465,11 @@ class WorldClocksSection extends St.Button {
     }
 
     _getTimezoneOffsetAtLocation(location) {
-        const tz = location.get_timezone();
         const localOffset = GLib.DateTime.new_now_local().get_utc_offset();
-        const utcOffset = GLib.DateTime.new_now(tz).get_utc_offset();
+        const utcOffset = this._getTimeAtLocation(location).get_utc_offset();
         const offsetCurrentTz = utcOffset - localOffset;
-        const offsetHours = Math.abs(offsetCurrentTz) / GLib.TIME_SPAN_HOUR;
+        const offsetHours =
+            Math.floor(Math.abs(offsetCurrentTz) / GLib.TIME_SPAN_HOUR);
         const offsetMinutes =
             (Math.abs(offsetCurrentTz) % GLib.TIME_SPAN_HOUR) /
             GLib.TIME_SPAN_MINUTE;
@@ -479,11 +481,31 @@ class WorldClocksSection extends St.Button {
         return text;
     }
 
+    _getTimeAtLocation(location) {
+        let tz = GLib.TimeZone.new(location.get_timezone().get_tzid());
+        return GLib.DateTime.new_now(tz);
+    }
+
     _updateTimeLabels() {
+        let differentLength = false;
+        let lastLength;
         for (let i = 0; i < this._locations.length; i++) {
             let l = this._locations[i];
-            const now = GLib.DateTime.new_now(l.location.get_timezone());
-            l.timeLabel.text = Util.formatTime(now, { timeOnly: true });
+            let now = this._getTimeAtLocation(l.location);
+            const text = Util.formatTime(now, { timeOnly: true });
+            l.timeLabel.text = text;
+
+            if (differentLength)
+                continue;
+            if (lastLength === undefined)
+                lastLength = text.length;
+            differentLength = lastLength !== text.length;
+        }
+
+        for (let i = 0; i < this._locations.length; i++) {
+            this._locations[i].timeLabel.x_align = differentLength
+                ? Clutter.ActorAlign.START
+                : Clutter.ActorAlign.END;
         }
     }
 

@@ -5,7 +5,8 @@
             shellAccessDialogDBusService, shellAudioSelectionDBusService,
             screenSaverDBus, uiGroup, magnifier, xdndHandler, keyboard,
             kbdA11yDialog, introspectService, start, pushModal, popModal,
-            activateWindow, createLookingGlass, initializeDeferredWork,
+            activateWindow, moveWindowToMonitorAndWorkspace,
+            createLookingGlass, initializeDeferredWork,
             getThemeStylesheet, setThemeStylesheet, screenshotUI */
 
 const { Clutter, Gio, GLib, GObject, Meta, Shell, St } = imports.gi;
@@ -138,6 +139,9 @@ function _sessionUpdated() {
             _remoteAccessInhibited = true;
         }
     }
+
+    if (!GLib.getenv("SHELL_DEBUG"))
+        global.set_debug_flags(sessionMode.debugFlags.join(':'));
 }
 
 function start() {
@@ -158,6 +162,12 @@ function start() {
     sessionMode.connect('updated', _sessionUpdated);
 
     St.Settings.get().connect('notify::high-contrast', _loadDefaultStylesheet);
+    St.Settings.get().connect('notify::gtk-theme', _loadDefaultStylesheet);
+    St.Settings.get().connect('notify::gtk-theme-variant', _loadDefaultStylesheet);
+
+    ubuntuSettings = new Gio.Settings({ schema_id: 'org.gnome.shell.ubuntu' });
+    ubuntuSettings.connect('changed::color-scheme', _loadDefaultStylesheet);
+    St.Settings.get()._ubuntuSettings = ubuntuSettings;
 
     // Initialize ParentalControlsManager before the UI
     ParentalControlsManager.getDefault();
@@ -365,6 +375,14 @@ async function _handleLockScreenWarning() {
     }
 }
 
+function _realpath(path) {
+    try {
+        while (GLib.file_test(path, GLib.FileTest.IS_SYMLINK))
+            path = GLib.file_read_link(path);
+    } catch (e) { }
+    return path;
+}
+
 function _getStylesheet(name) {
     let stylesheet;
 
@@ -375,16 +393,48 @@ function _getStylesheet(name) {
     let dataDirs = GLib.get_system_data_dirs();
     for (let i = 0; i < dataDirs.length; i++) {
         let path = GLib.build_filenamev([dataDirs[i], 'gnome-shell', 'theme', name]);
-        stylesheet = Gio.file_new_for_path(path);
+        stylesheet = Gio.file_new_for_path(_realpath(path));
         if (stylesheet.query_exists(null))
             return stylesheet;
     }
 
-    stylesheet = Gio.File.new_for_path(`${global.datadir}/theme/${name}`);
+    stylesheet = Gio.File.new_for_path(_realpath(`${global.datadir}/theme/${name}`));
     if (stylesheet.query_exists(null))
         return stylesheet;
 
     return null;
+}
+
+function _getYaruStyleSheet(themeVariant) {
+    const colorScheme = St.Settings.get()._ubuntuSettings.get_string('color-scheme');
+    const baseThemeName = sessionMode.stylesheetName.split(".css").at(0);
+    const isDark = themeVariant === 'dark' || themeVariant?.endsWith('-dark');
+    let colorSchemeVariant;
+
+    if (isDark && colorScheme == 'prefer-light') {
+        colorSchemeVariant = themeVariant.split('-').slice(0, -1).join('-');
+    } else if (!isDark && colorScheme == 'prefer-dark' ) {
+        colorSchemeVariant = themeVariant ? `${themeVariant}-dark` : 'dark';
+    }
+
+    if (colorSchemeVariant !== undefined) {
+        if (colorSchemeVariant.length)
+            colorSchemeVariant = `-${colorSchemeVariant}`;
+        const stylesheet = _getStylesheet(`${baseThemeName}${colorSchemeVariant}.css`);
+        if (stylesheet)
+            return stylesheet;
+    }
+
+    if (!themeVariant)
+        return null;
+
+    const stylesheet = _getStylesheet(`${baseThemeName}-${themeVariant}.css`);
+
+    // Try to use the dark theme if a dark variant is selected
+    if (!stylesheet && isDark)
+        return _getStylesheet(`${baseThemeName}-dark.css`);
+
+    return stylesheet;
 }
 
 function _getDefaultStylesheet() {
@@ -394,6 +444,13 @@ function _getDefaultStylesheet() {
     // Look for a high-contrast variant first
     if (St.Settings.get().high_contrast)
         stylesheet = _getStylesheet(name.replace('.css', '-high-contrast.css'));
+
+    if (stylesheet == null) {
+        const settings = St.Settings.get();
+
+        if (settings.gtk_theme == 'Yaru')
+            stylesheet = _getYaruStyleSheet(settings.gtk_theme_variant?.toLowerCase());
+    }
 
     if (stylesheet == null)
         stylesheet = _getStylesheet(sessionMode.stylesheetName);
@@ -444,7 +501,7 @@ function reloadThemeResource() {
 
 /** @private */
 function _loadIcons() {
-    _iconResource = Gio.Resource.load(`${global.datadir}/gnome-shell-icons.gresource`);
+    _iconResource = Gio.Resource.load(`${global.datadir}/${sessionMode.iconsResourceName}`);
     _iconResource._register();
 }
 
@@ -718,6 +775,33 @@ function activateWindow(window, time, workspaceNum) {
 
     overview.hide();
     panel.closeCalendar();
+}
+
+/**
+ * Move @window to the specified monitor and workspace.
+ *
+ * @param {Meta.Window} window - the window to move
+ * @param {number} monitorIndex - the requested monitor
+ * @param {number} workspaceIndex - the requested workspace
+ * @param {bool} append - create workspace if it doesn't exist
+ */
+function moveWindowToMonitorAndWorkspace(window, monitorIndex, workspaceIndex, append = false) {
+    // We need to move the window before changing the workspace, because
+    // the move itself could cause a workspace change if the window enters
+    // the primary monitor
+    if (window.get_monitor() !== monitorIndex) {
+        // Wait for the monitor change to take effect
+        const id = global.display.connect('window-entered-monitor',
+            (dsp, num, w) => {
+                if (w !== window)
+                    return;
+                window.change_workspace_by_index(workspaceIndex, append);
+                global.display.disconnect(id);
+            });
+        window.move_to_monitor(monitorIndex);
+    } else {
+        window.change_workspace_by_index(workspaceIndex, append);
+    }
 }
 
 // TODO - replace this timeout with some system to guess when the user might

@@ -84,7 +84,7 @@ class Indicator extends PanelMenu.SystemIndicator {
         });
 
         let app = this._settingsApp = Shell.AppSystem.get_default().lookup_app(
-            'org.gnome.Settings.desktop');
+            'gnome-control-center.desktop');
         if (app) {
             const [icon] = app.app_info.get_icon().names;
             const name = app.app_info.get_name();

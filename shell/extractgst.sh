@@ -2,7 +2,7 @@
 
 set +x
 
-gst=/usr/lib64/gnome-shell/libgnome-shell.so
+gst=/usr/lib/gnome-shell/libgnome-shell.so
 workdir=./
 
 for r in `gresource list $gst`; do

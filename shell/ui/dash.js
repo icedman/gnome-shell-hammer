@@ -244,9 +244,8 @@ class ShowAppsIcon extends DashItemContainer {
         this.toggleButton.set_hover(canRemove);
         if (this._iconActor)
             this._iconActor.set_hover(canRemove);
-
         if (canRemove)
-            this.setLabelText(_('Unpin'));
+            this.setLabelText(imports.misc.desktop.is('ubuntu') ? _('Remove from Favorites') : _('Unpin'));
         else
             this.setLabelText(_("Show Applications"));
     }

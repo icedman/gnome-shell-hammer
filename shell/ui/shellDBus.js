@@ -22,6 +22,7 @@ var GnomeShell = class {
         this._dbusImpl.export(Gio.DBus.session, '/org/gnome/Shell');
 
         this._senderChecker = new DBusSenderChecker([
+            'org.gnome.ControlCenter',
             'org.gnome.Settings',
             'org.gnome.SettingsDaemon.MediaKeys',
         ]);
@@ -253,9 +254,9 @@ var GnomeShell = class {
         invocation.return_value(GLib.Variant.new('(b)', [ungrabSucceeded]));
     }
 
-    ScreenTransitionAsync(params, invocation) {
+    async ScreenTransitionAsync(params, invocation) {
         try {
-            this._senderChecker.checkInvocation(invocation);
+            await this._senderChecker.checkInvocation(invocation);
         } catch (e) {
             invocation.return_gerror(e);
             return;

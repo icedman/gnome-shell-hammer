@@ -161,7 +161,11 @@ class AppFavorites {
 
         let app = Shell.AppSystem.get_default().lookup_app(appId);
 
-        let msg = _('%s has been pinned to the dash.').format(app.get_name());
+        let msg;
+        if (imports.misc.desktop.is('ubuntu'))
+            msg = _('%s has been added to your favorites.').format(app.get_name());
+        else
+            msg = _('%s has been pinned to the dash.').format(app.get_name());
         Main.overview.setMessage(msg, {
             forFeedback: true,
             undoCallback: () => this._removeFavorite(appId),
@@ -194,7 +198,11 @@ class AppFavorites {
         if (!this._removeFavorite(appId))
             return;
 
-        let msg = _('%s has been unpinned from the dash.').format(app.get_name());
+        let msg;
+        if (imports.misc.desktop.is('ubuntu'))
+            msg = _('%s has been removed from your favorites.').format(app.get_name());
+        else
+            msg = _('%s has been unpinned from the dash.').format(app.get_name());
         Main.overview.setMessage(msg, {
             forFeedback: true,
             undoCallback: () => this._addFavorite(appId, pos),

@@ -1,4 +1,5 @@
-f=open("/usr/lib64/gnome-shell/libgnome-shell.so","rb")
+#!/usr/bin/env python3
+f=open("/usr/lib/gnome-shell/libgnome-shell.so","rb")
 s=f.read()
 f.close()
 
@@ -6,10 +7,10 @@ f.close()
 s=s.replace(b'GESTURE_FINGER_COUNT\x20=\x203',b'GESTURE_FINGER_COUNT\x20=\x204')
 
 # radius .. 30px ick
-s=s.replace(b'RADIUS_PIXELS\x20=\x2030',b'RADIUS_PIXELS\x20=\x2010')
+#s=s.replace(b'RADIUS_PIXELS\x20=\x2030',b'RADIUS_PIXELS\x20=\x2010')
 
 # overview startup animation
-s=s.replace(b'Main.panel.style\x20=\x20\'tr',b'callback();\x20return;\x20//')
+#s=s.replace(b'Main.panel.style\x20=\x20\'tr',b'callback();\x20return;\x20//')
 
 f=open("libgnome-shell-replaced.so","wb")
 f.write(s)
