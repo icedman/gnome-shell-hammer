@@ -227,6 +227,11 @@ class Suggestions extends St.BoxLayout {
     clear() {
         this.remove_all_children();
     }
+
+    setVisible(visible) {
+        for (const child of this)
+            child.visible = visible;
+    }
 });
 
 var LanguageSelectionPopup = class extends PopupMenu.PopupMenu {
@@ -706,7 +711,7 @@ var EmojiPager = GObject.registerClass({
         panAction.connect('gesture-cancel', this._onPanCancel.bind(this));
         panAction.connect('gesture-end', this._onPanEnd.bind(this));
         this._panAction = panAction;
-        this.add_action(panAction);
+        this.add_action_full('pan', Clutter.EventPhase.CAPTURE, panAction);
     }
 
     get delta() {
@@ -1203,7 +1208,7 @@ var KeyboardManager = class KeyBoardManager {
             if (this._keyboard)
                 this._keyboard.gestureCancel();
         });
-        global.stage.add_action(bottomDragAction);
+        global.stage.add_action_full('osk', Clutter.EventPhase.CAPTURE, bottomDragAction);
         this._bottomDragAction = bottomDragAction;
 
         this._syncEnabled();
@@ -1268,6 +1273,10 @@ var KeyboardManager = class KeyBoardManager {
             this._keyboard.resetSuggestions();
     }
 
+    setSuggestionsVisible(visible) {
+        this._keyboard?.setSuggestionsVisible(visible);
+    }
+
     maybeHandleEvent(event) {
         if (!this._keyboard)
             return false;
@@ -1276,7 +1285,8 @@ var KeyboardManager = class KeyBoardManager {
 
         if (Main.layoutManager.keyboardBox.contains(actor) ||
             !!actor._extendedKeys || !!actor.extendedKey) {
-            actor.event(event);
+            actor.event(event, true);
+            actor.event(event, false);
             return true;
         }
 
@@ -1696,6 +1706,7 @@ var Keyboard = GObject.registerClass({
              * we allow the OSK being smaller than 1/3rd of the monitor height
              * there.
              */
+            this.height = -1;
             const forWidth = this.get_theme_node().adjust_for_width(monitor.width);
             const [, natHeight] = this.get_preferred_height(forWidth);
             this.height = Math.min(maxHeight, natHeight);
@@ -1933,6 +1944,10 @@ var Keyboard = GObject.registerClass({
     resetSuggestions() {
         if (this._suggestions)
             this._suggestions.clear();
+    }
+
+    setSuggestionsVisible(visible) {
+        this._suggestions?.setVisible(visible);
     }
 
     addSuggestion(text, callback) {

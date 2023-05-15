@@ -597,7 +597,7 @@ var NMDeviceModem = class extends NMConnectionDevice {
     }
 
     _getMenuIcon() {
-        if (!this._client.wwan_enabled)
+        if (!this._device.active_connection)
             return 'network-cellular-disabled-symbolic';
 
         return this.getIndicatorIcon();
@@ -689,7 +689,7 @@ var NMWirelessDialogItem = GObject.registerClass({
         this.add_child(this._label);
 
         this._selectedIcon = new St.Icon({
-            style_class: 'nm-dialog-icon',
+            style_class: 'nm-dialog-icon nm-dialog-network-selected',
             icon_name: 'object-select-symbolic',
         });
         this.add(this._selectedIcon);
@@ -868,7 +868,7 @@ class NMWirelessDialog extends ModalDialog.ModalDialog {
 
         const icon = new St.Icon({
             style_class: 'nm-dialog-header-icon',
-            icon_name: 'network-wireless-signal-excellent-symbolic',
+            icon_name: 'network-wireless-symbolic',
         });
 
         let titleBox = new St.BoxLayout({ vertical: true });

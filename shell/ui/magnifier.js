@@ -126,7 +126,13 @@ var Magnifier = class Magnifier {
 
         if (seat.is_unfocus_inhibited())
             seat.uninhibit_unfocus();
-        this._cursorTracker.set_pointer_visible(true);
+
+        if (this._cursorVisibilityChangedId) {
+            this._cursorTracker.disconnect(this._cursorVisibilityChangedId);
+            delete this._cursorVisibilityChangedId;
+
+            this._cursorTracker.set_pointer_visible(true);
+        }
     }
 
     /**
@@ -138,7 +144,14 @@ var Magnifier = class Magnifier {
 
         if (!seat.is_unfocus_inhibited())
             seat.inhibit_unfocus();
-        this._cursorTracker.set_pointer_visible(false);
+
+        if (!this._cursorVisibilityChangedId) {
+            this._cursorTracker.set_pointer_visible(false);
+            this._cursorVisibilityChangedId = this._cursorTracker.connect('visibility-changed', () => {
+                if (this._cursorTracker.get_pointer_visible())
+                    this._cursorTracker.set_pointer_visible(false);
+            });
+        }
     }
 
     /**
@@ -202,6 +215,8 @@ var Magnifier = class Magnifier {
         if (!this._pointerWatch) {
             let interval = 1000 / 60;
             this._pointerWatch = PointerWatcher.getPointerWatcher().addWatch(interval, this.scrollToMousePos.bind(this));
+
+            this.scrollToMousePos();
         }
     }
 
@@ -789,22 +804,84 @@ var ZoomRegion = class ZoomRegion {
         }
     }
 
+    _convertExtentsToScreenSpace(accessible, extents) {
+        const toplevelWindowTypes = new Set([
+            Atspi.Role.FRAME,
+            Atspi.Role.DIALOG,
+            Atspi.Role.WINDOW,
+        ]);
+
+        try {
+            let app = null;
+            let parentWindow = null;
+            let iter = accessible;
+            while (iter) {
+                if (iter.get_role() === Atspi.Role.APPLICATION) {
+                    app = iter;
+                    /* This is the last Accessible we are interested in */
+                    break;
+                } else if (toplevelWindowTypes.has(iter.get_role())) {
+                    parentWindow = iter;
+                }
+                iter = iter.get_parent();
+            }
+
+            /* We don't want to translate our own events to the focus window.
+             * They are also already scaled by clutter before being sent, so
+             * we don't need to do that here either. */
+            if (app && app.get_name() === 'gnome-shell')
+                return extents;
+
+            /* Only events from the focused widget of the focused window. Some
+             * widgets seem to claim to have focus when the window does not so
+             * check both. */
+            const windowActive = parentWindow &&
+                parentWindow.get_state_set().contains(Atspi.StateType.ACTIVE);
+            const accessibleFocused =
+                accessible.get_state_set().contains(Atspi.StateType.FOCUSED);
+            if (!windowActive || !accessibleFocused)
+                return null;
+        } catch (e) {
+            throw new Error(`Failed to validate parent window: ${e}`);
+        }
+
+        const { focusWindow } = global.display;
+        if (!focusWindow)
+            return null;
+
+        let windowRect = focusWindow.get_frame_rect();
+        if (!focusWindow.is_client_decorated())
+            windowRect = focusWindow.frame_rect_to_client_rect(windowRect);
+
+        const scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+        const screenSpaceExtents = new Atspi.Rect({
+            x: windowRect.x + (scaleFactor * extents.x),
+            y: windowRect.y + (scaleFactor * extents.y),
+            width: scaleFactor * extents.width,
+            height: scaleFactor * extents.height,
+        });
+
+        return screenSpaceExtents;
+    }
+
     _updateFocus(caller, event) {
         let component = event.source.get_component_iface();
         if (!component || event.detail1 != 1)
             return;
         let extents;
         try {
-            extents = component.get_extents(Atspi.CoordType.SCREEN);
+            extents = component.get_extents(Atspi.CoordType.WINDOW);
+            extents = this._convertExtentsToScreenSpace(event.source, extents);
+            if (!extents)
+                return;
         } catch (e) {
             log(`Failed to read extents of focused component: ${e.message}`);
             return;
         }
 
-        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
         const [xFocus, yFocus] = [
-            (extents.x + (extents.width / 2)) * scaleFactor,
-            (extents.y + (extents.height / 2)) * scaleFactor,
+            extents.x + (extents.width / 2),
+            extents.y + (extents.height / 2),
         ];
 
         if (this._xFocus !== xFocus || this._yFocus !== yFocus) {
@@ -819,14 +896,17 @@ var ZoomRegion = class ZoomRegion {
             return;
         let extents;
         try {
-            extents = text.get_character_extents(text.get_caret_offset(), 0);
+            extents = text.get_character_extents(text.get_caret_offset(),
+                Atspi.CoordType.WINDOW);
+            extents = this._convertExtentsToScreenSpace(text, extents);
+            if (!extents)
+                return;
         } catch (e) {
             log(`Failed to read extents of text caret: ${e.message}`);
             return;
         }
 
-        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-        let [xCaret, yCaret] = [extents.x * scaleFactor, extents.y * scaleFactor];
+        const [xCaret, yCaret] = [extents.x, extents.y];
 
         // Ignore event(s) if the caret size is none (0x0). This happens a lot if
         // the cursor offset can't be translated into a location. This is a work

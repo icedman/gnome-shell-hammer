@@ -369,6 +369,7 @@ var Message = GObject.registerClass({
         this._closeButton = new St.Button({
             style_class: 'message-close-button',
             child: closeIcon, opacity: 0,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         titleBox.add_actor(this._closeButton);
 
@@ -538,8 +539,10 @@ var Message = GObject.registerClass({
 
         if (keysym == Clutter.KEY_Delete ||
             keysym == Clutter.KEY_KP_Delete) {
-            this.close();
-            return Clutter.EVENT_STOP;
+            if (this.canClose()) {
+                this.close();
+                return Clutter.EVENT_STOP;
+            }
         }
         return super.vfunc_key_press_event(keyEvent);
     }

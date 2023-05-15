@@ -2,6 +2,7 @@
 
 /* custom */
 
+#lockScreenGroup,
 #lockDialogGroup {
   background: url(file:///usr/share/backgrounds/background.jpg);
   background-repeat: no-repeat;

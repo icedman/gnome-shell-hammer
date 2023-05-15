@@ -132,18 +132,12 @@ class WindowDimmer extends Clutter.BrightnessContrastEffect {
             name: WINDOW_DIMMER_EFFECT_NAME,
             enabled: false,
         });
-        this._enabled = true;
     }
 
-    _syncEnabled() {
+    _syncEnabled(dimmed) {
         let animating = this.actor.get_transition(`@effects.${this.name}.brightness`) !== null;
-        let dimmed = this.brightness.red != 127;
-        this.enabled = this._enabled && (animating || dimmed);
-    }
 
-    setEnabled(enabled) {
-        this._enabled = enabled;
-        this._syncEnabled();
+        this.enabled = Meta.prefs_get_attach_modal_dialogs() && (animating || dimmed);
     }
 
     setDimmed(dimmed, animate) {
@@ -153,20 +147,17 @@ class WindowDimmer extends Clutter.BrightnessContrastEffect {
         this.actor.ease_property(`@effects.${this.name}.brightness`, color, {
             mode: Clutter.AnimationMode.LINEAR,
             duration: (dimmed ? DIM_TIME : UNDIM_TIME) * (animate ? 1 : 0),
-            onComplete: () => this._syncEnabled(),
+            onStopped: () => this._syncEnabled(dimmed),
         });
 
-        this._syncEnabled();
+        this._syncEnabled(dimmed);
     }
 });
 
 function getWindowDimmer(actor) {
-    let enabled = Meta.prefs_get_attach_modal_dialogs();
     let effect = actor.get_effect(WINDOW_DIMMER_EFFECT_NAME);
 
-    if (effect) {
-        effect.setEnabled(enabled);
-    } else if (enabled) {
+    if (!effect) {
         effect = new WindowDimmer();
         actor.add_effect(effect);
     }
@@ -941,7 +932,7 @@ var WindowManager = class {
         appSwitchAction.connect('activated', this._switchApp.bind(this));
         global.stage.add_action_full('app-switch', Clutter.EventPhase.CAPTURE, appSwitchAction);
 
-        let mode = Shell.ActionMode.ALL & ~Shell.ActionMode.LOCK_SCREEN;
+        let mode = Shell.ActionMode.NORMAL;
         let topDragAction = new EdgeDragAction.EdgeDragAction(St.Side.TOP, mode);
         topDragAction.connect('activated',  () => {
             let currentWindow = global.display.focus_window;

@@ -625,6 +625,13 @@ var UnlockDialog = GObject.registerClass({
         return Clutter.EVENT_PROPAGATE;
     }
 
+    vfunc_captured_event(event) {
+        if (Main.keyboard.maybeHandleEvent(event))
+            return Clutter.EVENT_STOP;
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
     _createBackground(monitorIndex) {
         let monitor = Main.layoutManager.monitors[monitorIndex];
         let widget = new St.Widget({
@@ -866,7 +873,7 @@ var UnlockDialog = GObject.registerClass({
             timestamp,
             actionMode: Shell.ActionMode.UNLOCK_SCREEN,
         };
-        let grab = Main.pushModal(this, modalParams);
+        let grab = Main.pushModal(Main.uiGroup, modalParams);
         if (grab.get_seat_state() !== Clutter.GrabState.ALL) {
             Main.popModal(grab);
             return false;

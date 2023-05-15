@@ -3,13 +3,15 @@
 /* The name of this package (not localized) */
 var PACKAGE_NAME = 'gnome-shell';
 /* The version of this package */
-var PACKAGE_VERSION = '42.0';
+var PACKAGE_VERSION = '42.3.1';
 /* 1 if gnome-bluetooth is available, 0 otherwise */
 var HAVE_BLUETOOTH = 1;
 /* 1 if networkmanager is available, 0 otherwise */
 var HAVE_NETWORKMANAGER = 1;
-/* 1 if soup3 support is enabled, 0 otherwise */
+/* 1 if soup2 should be used instead of soup3, 0 otherwise */
 var HAVE_SOUP2 = 1;
+/* 1 if recorder is enabled, 0 otherwise */
+var HAVE_RECORDER = 1;
 /* gettext package */
 var GETTEXT_PACKAGE = 'gnome-shell';
 /* locale dir */
