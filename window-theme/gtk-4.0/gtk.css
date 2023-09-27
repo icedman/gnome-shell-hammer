@@ -1,11 +1,12 @@
 windowcontrols > button {
-  padding: 2px;
+  padding: 4px;
+  min-width: 16px;
+  min-height: 16px;
 }
 
 button.maximize > image,
 button.minimize > image,
 button.close > image {
-  border: 2px solid @headerbar_bg_color;
   opacity: 0.7;
   border-radius: 100%;
   text-shadow: none;

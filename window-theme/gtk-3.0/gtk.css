@@ -7,6 +7,8 @@ button.close:hover {
   background: none;
   border: none;
   padding: 2px;
+  min-width: 16px;
+  min-height: 16px;
 }
 
 button.maximize > image,
