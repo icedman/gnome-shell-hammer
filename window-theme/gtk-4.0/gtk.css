@@ -1,0 +1,37 @@
+windowcontrols > button {
+  padding: 2px;
+}
+
+button.maximize > image,
+button.minimize > image,
+button.close > image {
+  border: 2px solid @headerbar_bg_color;
+  opacity: 0.7;
+  border-radius: 100%;
+  text-shadow: none;
+  color: rgba(0,0,0,0);
+  margin: 0px;
+  padding: 0px;
+  min-width: 10px;
+  height: 10px;
+}
+
+button.maximize > image {
+  background-color: rgb(0, 220, 0);
+}
+
+button.minimize > image {
+  background-color: rgb(255, 220, 0);
+}
+
+button.close > image {
+  background-color: rgb(255, 0, 0);
+}
+
+
+button.maximize:hover > image,
+button.minimize:hover > image,
+button.close:hover > image {
+  opacity: 1;
+  color: rgba(0,0,0,0);
+}
