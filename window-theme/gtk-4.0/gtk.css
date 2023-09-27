@@ -1,7 +1,14 @@
-windowcontrols > button {
+button.maximize,
+button.minimize,
+button.close,
+button.maximize:hover,
+button.minimize:hover,
+button.close:hover {
+  background: none;
+  border: none;
   padding: 4px;
-  min-width: 16px;
-  min-height: 16px;
+  min-width: 20px;
+  min-height: 20px;
 }
 
 button.maximize > image,
@@ -13,7 +20,6 @@ button.close > image {
   color: rgba(0,0,0,0);
   margin: 0px;
   padding: 0px;
-  min-width: 10px;
   border: 1px solid rgba(0,0,0,0.35);
 }
 

@@ -18,6 +18,8 @@ button.close > image {
   border-radius: 100%;
   text-shadow: none;
   color: rgba(0,0,0,0);
+  margin: 0px;
+  padding: 0px;
   border: 1px solid rgba(0,0,0,0.35);
 }
 
