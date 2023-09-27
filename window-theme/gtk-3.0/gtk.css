@@ -18,6 +18,7 @@ button.close > image {
   border-radius: 100%;
   text-shadow: none;
   color: rgba(0,0,0,0);
+  border: 1px solid rgba(0,0,0,0.35);
 }
 
 button.maximize > image {
