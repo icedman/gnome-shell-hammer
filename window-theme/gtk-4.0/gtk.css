@@ -6,39 +6,43 @@ button.minimize:hover,
 button.close:hover {
   background: none;
   border: none;
-  padding: 4px;
-  min-width: 20px;
-  min-height: 20px;
+  margin: 0px;
+  margin-left: 4px;
+  padding: 0px;
+  min-width: 12px;
+  min-height: 12px;
+  border: 1px solid rgba(0,0,0,0);
 }
 
-button.maximize > image,
-button.minimize > image,
-button.close > image {
+button.maximize,
+button.minimize,
+button.close {
   opacity: 0.7;
   border-radius: 100%;
   text-shadow: none;
   color: rgba(0,0,0,0);
-  margin: 0px;
-  padding: 0px;
   border: 1px solid rgba(0,0,0,0.35);
 }
 
-button.maximize > image {
+button.maximize:hover,
+button.maximize {
   background-color: rgb(0, 220, 0);
 }
 
-button.minimize > image {
+button.minimize:hover,
+button.minimize {
   background-color: rgb(255, 220, 0);
 }
 
-button.close > image {
+button.close:hover,
+button.close {
   background-color: rgb(255, 0, 0);
 }
 
 
-button.maximize:hover > image,
-button.minimize:hover > image,
-button.close:hover > image {
+button.maximize:hover,
+button.minimize:hover,
+button.close:hover {
   opacity: 1;
-  color: rgba(0,0,0,0);
+  border: 1px solid rgba(0,0,0,0.35);
 }
