@@ -9,34 +9,40 @@ button.close:hover {
   margin: 0px;
   margin-left: 4px;
   padding: 1px;
-  min-width: 14px;
-  min-height: 14px;
-  border: 1px solid rgba(0,0,0,0);
+  min-width: 20px;
+  min-height: 20px;
+/*  border: 1px solid rgba(0,0,0,0);*/
 }
 
 button.maximize,
 button.minimize,
 button.close {
   opacity: 0.7;
-  border-radius: 100%;
+  border-radius: 0%;
   text-shadow: none;
   color: rgba(0,0,0,0);
-  border: 1px solid rgba(0,0,0,0.35);
+/*  border: 1px solid rgba(0,0,0,0.35);*/
 }
 
 button.maximize:hover,
 button.maximize {
-  background-color: rgb(0, 220, 0);
+  background-image: url("rr135.svg");
+  background-repeat: no-repeat;
+/*  background-color: rgb(0, 220, 0);*/
 }
 
 button.minimize:hover,
 button.minimize {
-  background-color: rgb(255, 220, 0);
+  background-image: url("rr135.svg");
+  background-repeat: no-repeat;
+/*  background-color: rgb(255, 220, 0);*/
 }
 
 button.close:hover,
 button.close {
-  background-color: rgb(255, 0, 0);
+  background-image: url("rr135.svg");
+  background-repeat: no-repeat;
+/*  background-color: rgb(255, 0, 0);*/
 }
 
 
@@ -44,5 +50,5 @@ button.maximize:hover,
 button.minimize:hover,
 button.close:hover {
   opacity: 1;
-  border: 1px solid rgba(0,0,0,0.35);
+/*  border: 1px solid rgba(0,0,0,0.35);*/
 }
